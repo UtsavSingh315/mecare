@@ -75,6 +75,23 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Signup error:", error);
+    
+    // Provide more specific error messages
+    if (error instanceof Error) {
+      if (error.message.includes("unique constraint")) {
+        return NextResponse.json(
+          { error: "Email address is already registered" },
+          { status: 409 }
+        );
+      }
+      if (error.message.includes("DATABASE_URL")) {
+        return NextResponse.json(
+          { error: "Database configuration error" },
+          { status: 503 }
+        );
+      }
+    }
+    
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

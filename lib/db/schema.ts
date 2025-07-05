@@ -403,16 +403,23 @@ export const userAffirmations = pgTable(
 
 // ==================== APP SETTINGS ====================
 
-export const userSettings = pgTable("user_settings", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id")
-    .references(() => users.id, { onDelete: "cascade" })
-    .notNull(),
-  key: varchar("key", { length: 100 }).notNull(),
-  value: jsonb("value"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const userSettings = pgTable(
+  "user_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    key: varchar("key", { length: 100 }).notNull(),
+    value: jsonb("value"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdIdx: index("user_settings_user_id_idx").on(table.userId),
+    userKeyIdx: index("user_settings_user_key_idx").on(table.userId, table.key),
+  })
+);
 
 // ==================== TODOS ====================
 

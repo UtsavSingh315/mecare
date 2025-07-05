@@ -1,7 +1,10 @@
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+
+const JWT_SECRET = process.env.JWT_SECRET || "your-very-secure-secret-key-change-this-in-production";
 
 export interface LoginCredentials {
   email: string;
@@ -132,15 +135,23 @@ export async function createUser(userData: {
   }
 }
 
-// Simple token verification (in production, use JWT)
+// JWT token verification
 export async function verifyToken(token: string): Promise<UserSession | null> {
   try {
-    // For simplicity, we're using base64 encoded user ID as token
-    // In production, use proper JWT tokens
-    const userId = Buffer.from(token, "base64").toString("utf-8");
+    // Verify JWT token
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; exp: number };
+    
+    if (!decoded.userId) {
+      return null;
+    }
+
+    // Check if token is expired (JWT already handles this, but being explicit)
+    if (decoded.exp && decoded.exp < Date.now() / 1000) {
+      return null;
+    }
 
     const user = await db.query.users.findFirst({
-      where: eq(users.id, userId),
+      where: eq(users.id, decoded.userId),
     });
 
     if (!user) {
@@ -160,7 +171,11 @@ export async function verifyToken(token: string): Promise<UserSession | null> {
   }
 }
 
-// Generate a simple token (in production, use JWT)
+// Generate a JWT token
 export function generateToken(userId: string): string {
-  return Buffer.from(userId).toString("base64");
+  return jwt.sign(
+    { userId },
+    JWT_SECRET,
+    { expiresIn: "7d" } // Token expires in 7 days
+  );
 }
