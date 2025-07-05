@@ -40,10 +40,18 @@ export async function GET(
       .limit(1);
 
     if (userProfile.length === 0) {
-      return NextResponse.json(
-        { error: "User profile not found" },
-        { status: 404 }
-      );
+      // Create a default profile if it doesn't exist
+      const [newProfile] = await db
+        .insert(userProfiles)
+        .values({
+          userId,
+          averageCycleLength: 28,
+          averagePeriodLength: 5,
+          timezone: "UTC",
+        })
+        .returning();
+
+      return NextResponse.json(newProfile);
     }
 
     return NextResponse.json(userProfile[0]);

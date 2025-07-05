@@ -41,12 +41,12 @@ export default function SettingsPage() {
   const [periodLength, setPeriodLength] = useState("5");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout, loading: authLoading } = useAuth();
 
   // Fetch user profile data on mount
   useEffect(() => {
     const fetchUserProfile = async () => {
-      if (!user) return;
+      if (!user || authLoading) return;
 
       try {
         const token = localStorage.getItem("auth_token");
@@ -61,17 +61,33 @@ export default function SettingsPage() {
           setAverageCycle(profile.averageCycleLength?.toString() || "28");
           setPeriodLength(profile.averagePeriodLength?.toString() || "5");
         } else {
-          console.error("Failed to fetch user profile");
+          console.error("Failed to fetch user profile:", response.status);
+          // Use default values if profile fetch fails
+          setAverageCycle("28");
+          setPeriodLength("5");
+
+          if (response.status !== 404) {
+            toast.error("Failed to load settings", {
+              description:
+                "Using default values. Please check your connection.",
+            });
+          }
         }
       } catch (error) {
         console.error("Error fetching user profile:", error);
+        // Use default values on error
+        setAverageCycle("28");
+        setPeriodLength("5");
+        toast.error("Failed to load settings", {
+          description: "Using default values. Please check your connection.",
+        });
       } finally {
         setLoading(false);
       }
     };
 
     fetchUserProfile();
-  }, [user]);
+  }, [user, authLoading]);
 
   const handleSave = async () => {
     if (!user) return;

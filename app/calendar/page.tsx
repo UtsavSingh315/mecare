@@ -49,7 +49,7 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [loading, setLoading] = useState(true);
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
 
   const monthNames = [
@@ -68,7 +68,7 @@ export default function CalendarPage() {
   ];
 
   const fetchCalendarData = async (date: Date) => {
-    if (!user) return;
+    if (!user || authLoading) return;
 
     try {
       setLoading(true);
@@ -89,22 +89,26 @@ export default function CalendarPage() {
         const data = await response.json();
         setCalendarData(data);
       } else {
-        console.error("Failed to fetch calendar data");
-        toast.error("Failed to load calendar data");
+        console.error("Failed to fetch calendar data:", response.status);
+        toast.error("Failed to load calendar data", {
+          description: "Please check your connection and try again.",
+        });
       }
     } catch (error) {
       console.error("Error fetching calendar data:", error);
-      toast.error("Error loading calendar data");
+      toast.error("Error loading calendar data", {
+        description: "Please check your connection and try again.",
+      });
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (user && isAuthenticated) {
+    if (user && isAuthenticated && !authLoading) {
       fetchCalendarData(currentDate);
     }
-  }, [user, isAuthenticated, currentDate]);
+  }, [user, isAuthenticated, currentDate, authLoading]);
 
   const goToPreviousMonth = () => {
     const newDate = new Date(

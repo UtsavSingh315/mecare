@@ -4,7 +4,9 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-very-secure-secret-key-change-this-in-production";
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  "your-very-secure-secret-key-change-this-in-production";
 
 export interface LoginCredentials {
   email: string;
@@ -139,8 +141,11 @@ export async function createUser(userData: {
 export async function verifyToken(token: string): Promise<UserSession | null> {
   try {
     // Verify JWT token
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; exp: number };
-    
+    const decoded = jwt.verify(token, JWT_SECRET) as {
+      userId: string;
+      exp: number;
+    };
+
     if (!decoded.userId) {
       return null;
     }

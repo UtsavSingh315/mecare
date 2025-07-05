@@ -6,7 +6,7 @@ export async function GET() {
     // Check environment variables
     const hasDbUrl = !!process.env.DATABASE_URL;
     const hasJwtSecret = !!process.env.JWT_SECRET;
-    
+
     // Try database health check
     let dbHealth = null;
     try {
@@ -14,19 +14,23 @@ export async function GET() {
     } catch (dbError) {
       dbHealth = {
         status: "unhealthy",
-        error: dbError instanceof Error ? dbError.message : "Unknown database error"
+        error:
+          dbError instanceof Error ? dbError.message : "Unknown database error",
       };
     }
 
     const health = {
-      status: hasDbUrl && hasJwtSecret && dbHealth?.status === "healthy" ? "healthy" : "unhealthy",
+      status:
+        hasDbUrl && hasJwtSecret && dbHealth?.status === "healthy"
+          ? "healthy"
+          : "unhealthy",
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || "unknown",
       checks: {
         database_url: hasDbUrl ? "present" : "missing",
         jwt_secret: hasJwtSecret ? "present" : "missing",
-        database: dbHealth
-      }
+        database: dbHealth,
+      },
     };
 
     return NextResponse.json(health, {

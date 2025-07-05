@@ -52,6 +52,9 @@ export default function LogPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useAuth();
   const [waterIntake, setWaterIntake] = useState([8]);
+  const [sleepHours, setSleepHours] = useState([7.5]);
+  const [exerciseMinutes, setExerciseMinutes] = useState([30]);
+  const [weight, setWeight] = useState("");
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -93,6 +96,10 @@ export default function LogPage() {
         mood: selectedMood,
         painLevel: painLevel[0],
         energyLevel: energyLevel[0],
+        waterIntake: waterIntake[0],
+        sleepHours: sleepHours[0].toString(),
+        exerciseMinutes: exerciseMinutes[0],
+        weight: weight || null,
         isOnPeriod: periodFlow,
         notes: notes,
         symptoms: selectedSymptoms,
@@ -120,6 +127,10 @@ export default function LogPage() {
         setPeriodFlow(false);
         setCustomSymptom("");
         setNotes("");
+        setWaterIntake([8]);
+        setSleepHours([7.5]);
+        setExerciseMinutes([30]);
+        setWeight("");
       } else {
         const error = await response.json();
         toast.error("Failed to save log", {
@@ -262,7 +273,7 @@ export default function LogPage() {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-gray-800">
             <Thermometer className="w-5 h-5 text-rose-500" />
-            How You Feel
+            Health Metrics
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -325,6 +336,63 @@ export default function LogPage() {
                 </span>
                 <span>12+ glasses</span>
               </div>
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-base font-medium">Sleep Hours</Label>
+            <div className="mt-2">
+              <Slider
+                value={sleepHours}
+                onValueChange={setSleepHours}
+                max={12}
+                min={0}
+                step={0.5}
+                className="w-full"
+              />
+              <div className="flex justify-between text-sm text-gray-500 mt-1">
+                <span>0 hours</span>
+                <span className="font-medium text-gray-700">
+                  {sleepHours[0]} hours
+                </span>
+                <span>12+ hours</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-base font-medium">Exercise Minutes</Label>
+            <div className="mt-2">
+              <Slider
+                value={exerciseMinutes}
+                onValueChange={setExerciseMinutes}
+                max={180}
+                min={0}
+                step={5}
+                className="w-full"
+              />
+              <div className="flex justify-between text-sm text-gray-500 mt-1">
+                <span>0 minutes</span>
+                <span className="font-medium text-gray-700">
+                  {exerciseMinutes[0]} minutes
+                </span>
+                <span>3+ hours</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-base font-medium">Weight (optional)</Label>
+            <div className="mt-2">
+              <Input
+                type="number"
+                placeholder="Enter your weight (kg)"
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
+                className="w-full"
+                step="0.1"
+                min="0"
+              />
             </div>
           </div>
         </CardContent>

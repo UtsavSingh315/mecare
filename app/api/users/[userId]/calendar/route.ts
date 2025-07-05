@@ -52,8 +52,36 @@ export async function GET(
       .where(eq(userProfiles.userId, userId))
       .limit(1);
 
-    const configuredCycleLength = userProfile[0]?.averageCycleLength || 28;
-    const configuredPeriodLength = userProfile[0]?.averagePeriodLength || 5;
+    // Handle missing user profile by creating default values or creating the profile
+    let configuredCycleLength = 28;
+    let configuredPeriodLength = 5;
+
+    if (userProfile.length === 0) {
+      // Create a default profile if it doesn't exist
+      try {
+        const [newProfile] = await db
+          .insert(userProfiles)
+          .values({
+            userId,
+            averageCycleLength: 28,
+            averagePeriodLength: 5,
+            timezone: "UTC",
+          })
+          .returning();
+
+        configuredCycleLength = newProfile.averageCycleLength;
+        configuredPeriodLength = newProfile.averagePeriodLength;
+      } catch (insertError) {
+        // If insert fails, use defaults
+        console.warn(
+          "Failed to create user profile, using defaults:",
+          insertError
+        );
+      }
+    } else {
+      configuredCycleLength = userProfile[0].averageCycleLength || 28;
+      configuredPeriodLength = userProfile[0].averagePeriodLength || 5;
+    }
 
     // Get daily logs for the month
     const logs = await db

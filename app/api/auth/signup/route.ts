@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Signup error:", error);
-    
+
     // Provide more specific error messages
     if (error instanceof Error) {
       if (error.message.includes("unique constraint")) {
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         );
       }
     }
-    
+
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
