@@ -70,7 +70,7 @@ interface BadgeData {
 
 const COLORS = [
   "#f43f5e",
-  "#ec4899", 
+  "#ec4899",
   "#a855f7",
   "#8b5cf6",
   "#6366f1",
@@ -94,7 +94,7 @@ export default function InsightsPage() {
 
       try {
         const token = localStorage.getItem("auth_token");
-        
+
         // Fetch insights data
         const response = await fetch(`/api/users/${user.id}/insights`, {
           headers: {
@@ -144,7 +144,11 @@ export default function InsightsPage() {
           setBadges({
             earned: [],
             available: [],
-            stats: { totalEarned: 0, totalAvailable: 0, completionPercentage: 0 }
+            stats: {
+              totalEarned: 0,
+              totalAvailable: 0,
+              completionPercentage: 0,
+            },
           });
         }
       } catch (error) {
@@ -169,7 +173,7 @@ export default function InsightsPage() {
         setBadges({
           earned: [],
           available: [],
-          stats: { totalEarned: 0, totalAvailable: 0, completionPercentage: 0 }
+          stats: { totalEarned: 0, totalAvailable: 0, completionPercentage: 0 },
         });
       } finally {
         setLoading(false);
@@ -364,10 +368,14 @@ export default function InsightsPage() {
                 <div className="text-center">
                   <Activity className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                   <p className="text-sm">
-                    {!mounted ? "Loading charts..." : "No symptom data available yet"}
+                    {!mounted
+                      ? "Loading charts..."
+                      : "No symptom data available yet"}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    {!mounted ? "Please wait..." : "Start logging to see your patterns"}
+                    {!mounted
+                      ? "Please wait..."
+                      : "Start logging to see your patterns"}
                   </p>
                 </div>
               </div>
@@ -432,10 +440,14 @@ export default function InsightsPage() {
                 <div className="text-center">
                   <Heart className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                   <p className="text-sm">
-                    {!mounted ? "Loading charts..." : "No mood data available yet"}
+                    {!mounted
+                      ? "Loading charts..."
+                      : "No mood data available yet"}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    {!mounted ? "Please wait..." : "Start logging to see your patterns"}
+                    {!mounted
+                      ? "Please wait..."
+                      : "Start logging to see your patterns"}
                   </p>
                 </div>
               </div>
@@ -488,7 +500,9 @@ export default function InsightsPage() {
                       key={badge.id}
                       className="p-3 bg-gradient-to-br from-rose-50 to-pink-50 rounded-lg border border-rose-200">
                       <div className="text-center">
-                        <div className="text-2xl mb-1">{badge.icon || "🏅"}</div>
+                        <div className="text-2xl mb-1">
+                          {badge.icon || "🏅"}
+                        </div>
                         <div className="text-sm font-medium text-gray-800">
                           {badge.name}
                         </div>

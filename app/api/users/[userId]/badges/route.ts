@@ -55,11 +55,13 @@ export async function GET(
       .from(badges)
       .where(eq(badges.isActive, true));
 
-    const earnedBadgeIds = new Set(userBadgeData.map(b => b.badgeId));
-    const availableBadges = allBadges.filter(badge => !earnedBadgeIds.has(badge.id));
+    const earnedBadgeIds = new Set(userBadgeData.map((b) => b.badgeId));
+    const availableBadges = allBadges.filter(
+      (badge) => !earnedBadgeIds.has(badge.id)
+    );
 
     return NextResponse.json({
-      earned: userBadgeData.map(badge => ({
+      earned: userBadgeData.map((badge) => ({
         id: badge.id,
         name: badge.name,
         description: badge.description,
@@ -68,7 +70,7 @@ export async function GET(
         earnedAt: badge.earnedAt,
         progress: badge.progress,
       })),
-      available: availableBadges.map(badge => ({
+      available: availableBadges.map((badge) => ({
         id: badge.id,
         name: badge.name,
         description: badge.description,
@@ -79,8 +81,10 @@ export async function GET(
       stats: {
         totalEarned: userBadgeData.length,
         totalAvailable: allBadges.length,
-        completionPercentage: Math.round((userBadgeData.length / allBadges.length) * 100),
-      }
+        completionPercentage: Math.round(
+          (userBadgeData.length / allBadges.length) * 100
+        ),
+      },
     });
   } catch (error) {
     console.error("Error fetching user badges:", error);

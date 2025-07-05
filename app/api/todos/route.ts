@@ -34,9 +34,9 @@ export async function GET(request: NextRequest) {
       todos: userTodos,
       stats: {
         total: userTodos.length,
-        completed: userTodos.filter(t => t.isCompleted).length,
-        pending: userTodos.filter(t => !t.isCompleted).length,
-      }
+        completed: userTodos.filter((t) => t.isCompleted).length,
+        pending: userTodos.filter((t) => !t.isCompleted).length,
+      },
     });
   } catch (error) {
     console.error("Error fetching todos:", error);
@@ -67,10 +67,7 @@ export async function POST(request: NextRequest) {
     const { title, description, category, priority, dueDate, isDefault } = body;
 
     if (!title?.trim()) {
-      return NextResponse.json(
-        { error: "Title is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
 
     // Create new todo
@@ -90,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       todo: newTodo[0],
-      message: "Todo created successfully"
+      message: "Todo created successfully",
     });
   } catch (error) {
     console.error("Error creating todo:", error);
@@ -164,7 +161,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({
       todo: updatedTodo[0],
-      message: "Todo updated successfully"
+      message: "Todo updated successfully",
     });
   } catch (error) {
     console.error("Error updating todo:", error);
@@ -215,7 +212,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     return NextResponse.json({
-      message: "Todo deleted successfully"
+      message: "Todo deleted successfully",
     });
   } catch (error) {
     console.error("Error deleting todo:", error);

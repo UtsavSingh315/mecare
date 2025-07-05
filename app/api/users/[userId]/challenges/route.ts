@@ -66,10 +66,7 @@ export async function GET(
             .select({ count: count() })
             .from(dailyLogs)
             .where(
-              and(
-                eq(dailyLogs.userId, userId),
-                gte(dailyLogs.date, startDate)
-              )
+              and(eq(dailyLogs.userId, userId), gte(dailyLogs.date, startDate))
             );
           actualProgress = logCount[0]?.count || 0;
         } else if (challenge.type === "streak") {

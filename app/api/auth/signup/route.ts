@@ -46,7 +46,6 @@ export async function POST(request: NextRequest) {
     const defaultSettings = [
       { key: "theme", value: "light" },
       { key: "language", value: "en" },
-      { key: "privacySettings", value: { appLock: false, analytics: true } },
       { key: "dataRetentionDays", value: 365 },
     ];
 

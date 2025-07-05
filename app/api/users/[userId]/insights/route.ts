@@ -127,12 +127,12 @@ export async function GET(
       },
     };
 
-    console.log('Insights response:', {
+    console.log("Insights response:", {
       totalLogged: insights.totalLogged,
       symptomsCount: insights.symptoms.length,
       moodsCount: insights.moods.length,
       symptoms: insights.symptoms,
-      moods: insights.moods
+      moods: insights.moods,
     });
 
     return NextResponse.json(insights);

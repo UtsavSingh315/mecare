@@ -38,9 +38,21 @@ export function TodoList() {
 
   // Default todos for new users
   const defaultTodos = [
-    { title: "Pack period pads", description: "Remember to pack extra pads for the day", category: "period" },
-    { title: "Get comfort snacks", description: "Stock up on favorite munchies for PMS days", category: "self-care" },
-    { title: "Track mood today", description: "Log today's mood and energy levels", category: "tracking" },
+    {
+      title: "Pack period pads",
+      description: "Remember to pack extra pads for the day",
+      category: "period",
+    },
+    {
+      title: "Get comfort snacks",
+      description: "Stock up on favorite munchies for PMS days",
+      category: "self-care",
+    },
+    {
+      title: "Track mood today",
+      description: "Log today's mood and energy levels",
+      category: "tracking",
+    },
   ];
 
   // Fetch todos from API
@@ -69,7 +81,7 @@ export function TodoList() {
         console.log("Todos API response data:", data);
         const todosList = data.todos || data; // Handle both response formats
         setTodos(todosList);
-        
+
         // If no todos exist, create default ones
         if (todosList.length === 0) {
           console.log("No todos found, creating default todos");
@@ -94,7 +106,7 @@ export function TodoList() {
 
     try {
       const token = localStorage.getItem("auth_token");
-      
+
       console.log("Creating default todos...");
       for (const defaultTodo of defaultTodos) {
         console.log("Creating todo:", defaultTodo.title);
@@ -109,15 +121,19 @@ export function TodoList() {
             isDefault: true,
           }),
         });
-        
+
         if (!response.ok) {
           const errorData = await response.text();
-          console.error("Failed to create default todo:", defaultTodo.title, errorData);
+          console.error(
+            "Failed to create default todo:",
+            defaultTodo.title,
+            errorData
+          );
         } else {
           console.log("Created default todo:", defaultTodo.title);
         }
       }
-      
+
       // Refresh the todos list
       console.log("Refreshing todos list after creating defaults");
       fetchTodos();
@@ -196,13 +212,18 @@ export function TodoList() {
   const deleteTodo = async (todoId: string) => {
     if (!user) return;
 
-    console.log("Attempting to delete todo with ID:", todoId, "Type:", typeof todoId);
+    console.log(
+      "Attempting to delete todo with ID:",
+      todoId,
+      "Type:",
+      typeof todoId
+    );
 
     try {
       const token = localStorage.getItem("auth_token");
       const requestBody = { id: todoId };
       console.log("DELETE request body:", requestBody);
-      
+
       const response = await fetch("/api/todos", {
         method: "DELETE",
         headers: {
@@ -213,13 +234,18 @@ export function TodoList() {
       });
 
       console.log("DELETE response status:", response.status);
-      
+
       if (response.ok) {
         console.log("Todo deleted successfully");
         setTodos((prev) => prev.filter((todo) => todo.id !== todoId));
       } else {
         const errorText = await response.text();
-        console.error("Failed to delete todo. Status:", response.status, "Error:", errorText);
+        console.error(
+          "Failed to delete todo. Status:",
+          response.status,
+          "Error:",
+          errorText
+        );
       }
     } catch (error) {
       console.error("Error deleting todo:", error);
@@ -264,7 +290,9 @@ export function TodoList() {
         </CardHeader>
         <CardContent>
           <div className="text-center py-4">
-            <p className="text-gray-600 text-sm">Please log in to see your todos</p>
+            <p className="text-gray-600 text-sm">
+              Please log in to see your todos
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -297,8 +325,7 @@ export function TodoList() {
             onClick={addTodo}
             disabled={!newTodoTitle.trim() || isAdding}
             size="sm"
-            className="bg-rose-500 hover:bg-rose-600"
-          >
+            className="bg-rose-500 hover:bg-rose-600">
             {isAdding ? (
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
             ) : (
@@ -316,8 +343,7 @@ export function TodoList() {
                 todo.isCompleted
                   ? "bg-green-50 border-green-200"
                   : "bg-gray-50 border-gray-200 hover:bg-gray-100"
-              }`}
-            >
+              }`}>
               <Checkbox
                 checked={todo.isCompleted}
                 onCheckedChange={() => toggleTodo(todo.id, todo.isCompleted)}
@@ -329,16 +355,14 @@ export function TodoList() {
                     todo.isCompleted
                       ? "text-green-700 line-through"
                       : "text-gray-800"
-                  }`}
-                >
+                  }`}>
                   {todo.title}
                 </p>
                 {todo.description && (
                   <p
                     className={`text-xs ${
                       todo.isCompleted ? "text-green-600" : "text-gray-600"
-                    }`}
-                  >
+                    }`}>
                     {todo.description}
                   </p>
                 )}
@@ -352,8 +376,7 @@ export function TodoList() {
                 variant="ghost"
                 size="sm"
                 onClick={() => deleteTodo(todo.id)}
-                className="text-gray-400 hover:text-red-500 h-8 w-8 p-0"
-              >
+                className="text-gray-400 hover:text-red-500 h-8 w-8 p-0">
                 <X className="w-4 h-4" />
               </Button>
             </div>
@@ -372,7 +395,8 @@ export function TodoList() {
         {todos.length > 0 && (
           <div className="text-center pt-2 border-t">
             <p className="text-xs text-gray-500">
-              {todos.filter((todo) => todo.isCompleted).length} of {todos.length} completed
+              {todos.filter((todo) => todo.isCompleted).length} of{" "}
+              {todos.length} completed
             </p>
           </div>
         )}

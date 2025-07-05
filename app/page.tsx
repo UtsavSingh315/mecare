@@ -1,7 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CalendarDays, Flame, Award, TrendingUp, User, Target, CheckCircle } from "lucide-react";
+import {
+  CalendarDays,
+  Flame,
+  Award,
+  TrendingUp,
+  User,
+  Target,
+  CheckCircle,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -349,7 +357,9 @@ export default function Home() {
                   Log 25 days this month
                 </p>
                 <Progress value={68} className="h-2" />
-                <p className="text-xs text-gray-500 mt-1">17/25 days completed</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  17/25 days completed
+                </p>
               </div>
             )}
           </CardContent>

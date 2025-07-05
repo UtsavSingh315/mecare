@@ -77,7 +77,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-gradient-to-b from-rose-50 to-white text-foreground;
+    @apply bg-gradient-to-b from-rose-50 to-white text-gray-900;
     min-height: 100vh;
   }
 }
@@ -96,7 +96,7 @@
     @apply relative;
   }
   .logged-day::after {
-    content: '';
+    content: "";
     @apply absolute top-1 right-1 w-2 h-2 bg-purple-500 rounded-full;
   }
   .nav-button {
@@ -109,15 +109,29 @@
     animation: flame 2s ease-in-out infinite alternate;
   }
   @keyframes flame {
-    0% { transform: scale(1) rotate(-1deg); }
-    100% { transform: scale(1.05) rotate(1deg); }
+    0% {
+      transform: scale(1) rotate(-1deg);
+    }
+    100% {
+      transform: scale(1.05) rotate(1deg);
+    }
   }
   .badge-bounce {
     animation: bounce 0.5s ease-in-out;
   }
   @keyframes bounce {
-    0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-    40% { transform: translateY(-10px); }
-    60% { transform: translateY(-5px); }
+    0%,
+    20%,
+    50%,
+    80%,
+    100% {
+      transform: translateY(0);
+    }
+    40% {
+      transform: translateY(-10px);
+    }
+    60% {
+      transform: translateY(-5px);
+    }
   }
 }

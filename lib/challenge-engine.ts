@@ -1,11 +1,11 @@
 import { db } from "@/lib/db";
-import { 
-  dailyLogs, 
-  userChallenges, 
-  userBadges, 
-  challenges, 
+import {
+  dailyLogs,
+  userChallenges,
+  userBadges,
+  challenges,
   badges,
-  cycles 
+  cycles,
 } from "@/lib/db/schema";
 import { eq, and, gte, desc, count } from "drizzle-orm";
 
@@ -27,7 +27,7 @@ export class ChallengeEngine {
           challengeId: userChallenges.challengeId,
           currentProgress: userChallenges.currentProgress,
           isCompleted: userChallenges.isCompleted,
-          challenge: challenges
+          challenge: challenges,
         })
         .from(userChallenges)
         .innerJoin(challenges, eq(userChallenges.challengeId, challenges.id))
@@ -44,19 +44,19 @@ export class ChallengeEngine {
 
         // Calculate progress based on challenge type
         switch (challenge.type) {
-          case 'daily_logging':
+          case "daily_logging":
             newProgress = await this.calculateLoggingStreak(userId);
             break;
-          case 'period_tracking':
+          case "period_tracking":
             newProgress = await this.calculatePeriodTrackingCount(userId);
             break;
-          case 'symptom_awareness':
+          case "symptom_awareness":
             newProgress = await this.calculateSymptomLogsCount(userId);
             break;
-          case 'mood_tracking':
+          case "mood_tracking":
             newProgress = await this.calculateMoodLogsCount(userId);
             break;
-          case 'consistency':
+          case "consistency":
             newProgress = await this.calculateConsistencyScore(userId);
             break;
           default:
@@ -72,7 +72,7 @@ export class ChallengeEngine {
           .set({
             currentProgress: newProgress,
             isCompleted: newProgress >= challenge.target,
-            completedAt: newProgress >= challenge.target ? new Date() : null
+            completedAt: newProgress >= challenge.target ? new Date() : null,
           })
           .where(
             and(
@@ -87,7 +87,7 @@ export class ChallengeEngine {
         }
       }
     } catch (error) {
-      console.error('Error updating challenges:', error);
+      console.error("Error updating challenges:", error);
     }
   }
 
@@ -105,13 +105,13 @@ export class ChallengeEngine {
     // Calculate consecutive days from today backwards
     let streak = 0;
     const today = new Date();
-    
+
     for (let i = 0; i < 30; i++) {
       const checkDate = new Date(today);
       checkDate.setDate(today.getDate() - i);
-      const dateStr = checkDate.toISOString().split('T')[0];
-      
-      const hasLog = recentLogs.some(log => log.date === dateStr);
+      const dateStr = checkDate.toISOString().split("T")[0];
+
+      const hasLog = recentLogs.some((log) => log.date === dateStr);
       if (hasLog) {
         streak++;
       } else if (i > 0) {
@@ -123,7 +123,9 @@ export class ChallengeEngine {
     return streak;
   }
 
-  private static async calculatePeriodTrackingCount(userId: string): Promise<number> {
+  private static async calculatePeriodTrackingCount(
+    userId: string
+  ): Promise<number> {
     // Count completed cycles (periods tracked)
     const cycleCount = await db
       .select({ count: count() })
@@ -138,21 +140,18 @@ export class ChallengeEngine {
     return cycleCount[0]?.count || 0;
   }
 
-  private static async calculateSymptomLogsCount(userId: string): Promise<number> {
+  private static async calculateSymptomLogsCount(
+    userId: string
+  ): Promise<number> {
     // Count days with symptom logs in last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const startDate = thirtyDaysAgo.toISOString().split('T')[0];
+    const startDate = thirtyDaysAgo.toISOString().split("T")[0];
 
     const symptomLogs = await db
       .select({ count: count() })
       .from(dailyLogs)
-      .where(
-        and(
-          eq(dailyLogs.userId, userId),
-          gte(dailyLogs.date, startDate)
-        )
-      );
+      .where(and(eq(dailyLogs.userId, userId), gte(dailyLogs.date, startDate)));
 
     return symptomLogs[0]?.count || 0;
   }
@@ -161,36 +160,28 @@ export class ChallengeEngine {
     // Count days with mood logs in last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const startDate = thirtyDaysAgo.toISOString().split('T')[0];
+    const startDate = thirtyDaysAgo.toISOString().split("T")[0];
 
     const moodLogs = await db
       .select({ count: count() })
       .from(dailyLogs)
-      .where(
-        and(
-          eq(dailyLogs.userId, userId),
-          gte(dailyLogs.date, startDate)
-        )
-      );
+      .where(and(eq(dailyLogs.userId, userId), gte(dailyLogs.date, startDate)));
 
     return moodLogs[0]?.count || 0;
   }
 
-  private static async calculateConsistencyScore(userId: string): Promise<number> {
+  private static async calculateConsistencyScore(
+    userId: string
+  ): Promise<number> {
     // Calculate logging consistency percentage over last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const startDate = thirtyDaysAgo.toISOString().split('T')[0];
+    const startDate = thirtyDaysAgo.toISOString().split("T")[0];
 
     const totalLogs = await db
       .select({ count: count() })
       .from(dailyLogs)
-      .where(
-        and(
-          eq(dailyLogs.userId, userId),
-          gte(dailyLogs.date, startDate)
-        )
-      );
+      .where(and(eq(dailyLogs.userId, userId), gte(dailyLogs.date, startDate)));
 
     const logCount = totalLogs[0]?.count || 0;
     return Math.round((logCount / 30) * 100);
@@ -203,10 +194,7 @@ export class ChallengeEngine {
         .select()
         .from(userBadges)
         .where(
-          and(
-            eq(userBadges.userId, userId),
-            eq(userBadges.badgeId, badgeId)
-          )
+          and(eq(userBadges.userId, userId), eq(userBadges.badgeId, badgeId))
         )
         .limit(1);
 
@@ -215,13 +203,13 @@ export class ChallengeEngine {
         await db.insert(userBadges).values({
           userId,
           badgeId,
-          earnedAt: new Date()
+          earnedAt: new Date(),
         });
 
         console.log(`Badge ${badgeId} awarded to user ${userId}`);
       }
     } catch (error) {
-      console.error('Error awarding badge:', error);
+      console.error("Error awarding badge:", error);
     }
   }
 
@@ -229,9 +217,7 @@ export class ChallengeEngine {
   static async initializeUserChallenges(userId: string) {
     try {
       // Get all available challenges
-      const allChallenges = await db
-        .select()
-        .from(challenges);
+      const allChallenges = await db.select().from(challenges);
 
       // Create user challenge entries
       for (const challenge of allChallenges) {
@@ -239,11 +225,11 @@ export class ChallengeEngine {
           userId,
           challengeId: challenge.id,
           currentProgress: 0,
-          isCompleted: false
+          isCompleted: false,
         });
       }
     } catch (error) {
-      console.error('Error initializing user challenges:', error);
+      console.error("Error initializing user challenges:", error);
     }
   }
 }

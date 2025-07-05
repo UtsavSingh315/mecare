@@ -115,14 +115,6 @@ export async function createTestUsers() {
         },
         {
           userId: newUser.id,
-          key: "privacySettings",
-          value: {
-            appLock: false,
-            analytics: true,
-          },
-        },
-        {
-          userId: newUser.id,
           key: "dataRetentionDays",
           value: 365,
         },

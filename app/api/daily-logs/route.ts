@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     const dailyLog = await createDailyLog(userId, logData);
 
     // Update challenges and check for badge awards
-    await ChallengeEngine.checkAndUpdateChallenges(userId, 'daily_log_created');
+    await ChallengeEngine.checkAndUpdateChallenges(userId, "daily_log_created");
 
     return NextResponse.json({
       success: true,
