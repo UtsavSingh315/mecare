@@ -68,6 +68,36 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const { user, isAuthenticated } = useAuth();
 
+  // Calculate monthly progress from calendar data
+  const calculateMonthlyProgress = () => {
+    if (!calendarData?.logs) return { current: 0, target: 25 };
+    
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+    
+    // Filter logs for current month and year
+    const monthlyLogs = calendarData.logs.filter(log => {
+      const logDate = new Date(log.date);
+      return logDate.getMonth() === currentMonth && 
+             logDate.getFullYear() === currentYear &&
+             // Only count logs that have actual data (not empty logs)
+             (log.mood || log.painLevel !== null || log.energyLevel !== null || log.notes);
+    });
+    
+    // Adaptive target based on how many days are left in the month
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const daysPassed = currentDate.getDate();
+    const target = Math.min(25, daysInMonth); // Don't set target higher than days in month
+    
+    return {
+      current: monthlyLogs.length,
+      target: target,
+      daysInMonth: daysInMonth,
+      daysPassed: daysPassed
+    };
+  };
+
   useEffect(() => {
     // Simulate badge unlock animation
     const timer = setTimeout(() => setShowBadge(true), 1000);
@@ -349,18 +379,36 @@ export default function Home() {
 
             {/* Default challenge if no active challenges */}
             {challenges.length === 0 && (
-              <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl">
-                <h4 className="font-medium text-gray-800 mb-2">
-                  Monthly Challenge
-                </h4>
-                <p className="text-sm text-gray-600 mb-3">
-                  Log 25 days this month
-                </p>
-                <Progress value={68} className="h-2" />
-                <p className="text-xs text-gray-500 mt-1">
-                  17/25 days completed
-                </p>
-              </div>
+              (() => {
+                const monthlyProgress = calculateMonthlyProgress();
+                const progressPercentage = Math.min((monthlyProgress.current / monthlyProgress.target) * 100, 100);
+                const isCompleted = monthlyProgress.current >= monthlyProgress.target;
+                const currentMonth = new Date().toLocaleString('default', { month: 'long' });
+                
+                return (
+                  <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl">
+                    <h4 className="font-medium text-gray-800 mb-2">
+                      {currentMonth} Challenge
+                    </h4>
+                    <p className="text-sm text-gray-600 mb-3">
+                      Log {monthlyProgress.target} days this month
+                    </p>
+                    <Progress 
+                      value={progressPercentage} 
+                      className="h-2" 
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      {monthlyProgress.current}/{monthlyProgress.target} days completed
+                      {isCompleted && " 🎉 Challenge Complete!"}
+                    </p>
+                    {!isCompleted && monthlyProgress.current > 0 && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        {monthlyProgress.target - monthlyProgress.current} more days to go!
+                      </p>
+                    )}
+                  </div>
+                );
+              })()
             )}
           </CardContent>
         </Card>
