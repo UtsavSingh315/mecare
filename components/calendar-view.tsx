@@ -30,6 +30,7 @@ interface CalendarViewProps {
   };
   currentDate: Date;
   onDateSelect?: (date: Date | undefined) => void;
+  onMonthChange?: (date: Date) => void;
 }
 
 export function CalendarView({
@@ -38,6 +39,7 @@ export function CalendarView({
   predictions,
   currentDate,
   onDateSelect,
+  onMonthChange,
 }: CalendarViewProps) {
   // Safety check for currentDate
   const safeCurrentDate = currentDate || new Date();
@@ -51,15 +53,30 @@ export function CalendarView({
     onDateSelect?.(date);
   };
 
+  const handleMonthChange = (date: Date) => {
+    onMonthChange?.(date);
+  };
+
   // Create lookup maps for efficient searching
   const logMap = new Map((logs || []).map((log) => [log.date, log]));
   const periodMap = new Map(
     (periodDays || []).map((period) => [period.date, period])
   );
 
-  // Helper function to get date string in YYYY-MM-DD format
+  // Helper function to get date string in YYYY-MM-DD format (timezone-safe)
   const getDateString = (date: Date): string => {
-    return date.toISOString().split("T")[0];
+    // Use local timezone to avoid date shifting issues
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Helper function to create a Date object from YYYY-MM-DD string in local timezone
+  const createLocalDate = (dateString: string): Date => {
+    // Parse the date in local timezone to avoid UTC conversion issues
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day); // month is 0-based in Date constructor
   };
 
   // Helper function to check if a date has specific data
@@ -68,8 +85,14 @@ export function CalendarView({
   };
 
   const isPeriodDay = (date: Date): boolean => {
-    const log = logMap.get(getDateString(date));
-    return log?.isOnPeriod === true || periodMap.has(getDateString(date));
+    const dateStr = getDateString(date);
+    const log = logMap.get(dateStr);
+    const periodData = periodMap.get(dateStr);
+    
+    // A day is a period day only if BOTH conditions are true:
+    // 1. The daily log explicitly says isOnPeriod: true
+    // 2. There's corresponding period flow data for that day
+    return log?.isOnPeriod === true && !!periodData;
   };
 
   const getPainLevel = (date: Date): number | null => {
@@ -96,14 +119,15 @@ export function CalendarView({
   const fertileDates: Date[] = [];
 
   logs.forEach((log) => {
-    const logDate = new Date(log.date);
+    const logDate = createLocalDate(log.date);
     if (
       logDate.getMonth() === currentMonth &&
       logDate.getFullYear() === currentYear
     ) {
       datesWithLogs.push(logDate);
 
-      if (log.isOnPeriod) {
+      // Only add to periodDates if it meets the strict isPeriodDay criteria
+      if (isPeriodDay(logDate)) {
         periodDates.push(logDate);
       }
 
@@ -117,14 +141,15 @@ export function CalendarView({
     }
   });
 
-  // Add period days that might not be in logs
+  // Add period days that meet the strict criteria (both log.isOnPeriod and period data)
   periodDays.forEach((period) => {
-    const periodDate = new Date(period.date);
+    const periodDate = createLocalDate(period.date);
     if (
       periodDate.getMonth() === currentMonth &&
       periodDate.getFullYear() === currentYear
     ) {
-      if (!periodDates.some((d) => getDateString(d) === period.date)) {
+      // Only add if it passes the isPeriodDay validation and isn't already included
+      if (isPeriodDay(periodDate) && !periodDates.some((d) => getDateString(d) === period.date)) {
         periodDates.push(periodDate);
       }
     }
@@ -133,10 +158,12 @@ export function CalendarView({
   // Add prediction dates
   if (predictions) {
     if (predictions.nextPeriod) {
-      const nextPeriodDate = new Date(predictions.nextPeriod);
+      const nextPeriodDate = createLocalDate(predictions.nextPeriod);
+      // Only add predicted period if it doesn't conflict with actual period days
       if (
         nextPeriodDate.getMonth() === currentMonth &&
-        nextPeriodDate.getFullYear() === currentYear
+        nextPeriodDate.getFullYear() === currentYear &&
+        !periodDates.some(pd => getDateString(pd) === getDateString(nextPeriodDate))
       ) {
         predictedPeriodDates.push(nextPeriodDate);
         // Add predicted period duration (assume 5 days)
@@ -145,7 +172,8 @@ export function CalendarView({
           periodDay.setDate(nextPeriodDate.getDate() + i);
           if (
             periodDay.getMonth() === currentMonth &&
-            periodDay.getFullYear() === currentYear
+            periodDay.getFullYear() === currentYear &&
+            !periodDates.some(pd => getDateString(pd) === getDateString(periodDay))
           ) {
             predictedPeriodDates.push(periodDay);
           }
@@ -154,7 +182,7 @@ export function CalendarView({
     }
 
     if (predictions.ovulation) {
-      const ovulationDate = new Date(predictions.ovulation);
+      const ovulationDate = createLocalDate(predictions.ovulation);
       if (
         ovulationDate.getMonth() === currentMonth &&
         ovulationDate.getFullYear() === currentYear
@@ -166,8 +194,8 @@ export function CalendarView({
     if (predictions.fertileWindow) {
       const [startDate, endDate] = predictions.fertileWindow.split(" to ");
       if (startDate && endDate) {
-        const fertileStart = new Date(startDate);
-        const fertileEnd = new Date(endDate);
+        const fertileStart = createLocalDate(startDate);
+        const fertileEnd = createLocalDate(endDate);
 
         for (
           let d = new Date(fertileStart);
@@ -217,10 +245,11 @@ export function CalendarView({
       borderRadius: "50%",
     },
     predictedPeriod: {
-      backgroundColor: "#fecaca",
-      color: "#dc2626",
+      backgroundColor: "#fca5a5",
+      color: "#991b1b",
       borderRadius: "50%",
       border: "2px dashed #dc2626",
+      fontWeight: "bold",
     },
     ovulation: {
       backgroundColor: "#a3e635",
@@ -272,6 +301,7 @@ export function CalendarView({
         mode="single"
         selected={selectedDate}
         onSelect={handleDateSelect}
+        onMonthChange={handleMonthChange}
         modifiers={modifiers}
         modifiersStyles={modifiersStyles}
         className="rounded-lg border-0"
@@ -327,6 +357,8 @@ export function CalendarView({
               const dateStr = getDateString(selectedDate);
               const logData = logMap.get(dateStr);
               const periodData = periodMap.get(dateStr);
+              const isActualPeriodDay = isPeriodDay(selectedDate);
+              const isPredictedPeriodDay = predictedPeriodDates.some(pd => getDateString(pd) === dateStr);
 
               if (logData || periodData) {
                 return (
@@ -338,7 +370,7 @@ export function CalendarView({
                         className="text-purple-600 border-purple-200">
                         ✓ Data logged
                       </Badge>
-                      {logData?.isOnPeriod && (
+                      {isActualPeriodDay && (
                         <Badge
                           variant="outline"
                           className="text-red-600 border-red-200">
@@ -402,6 +434,23 @@ export function CalendarView({
                         )}
                       </div>
                     )}
+                  </div>
+                );
+              } else if (isPredictedPeriodDay) {
+                return (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge
+                        variant="outline"
+                        className="text-red-300 border-red-300">
+                        🔴 Predicted period day
+                      </Badge>
+                    </div>
+                    <div className="text-center py-2">
+                      <p className="text-gray-500 text-sm">
+                        This is a predicted period day based on your cycle pattern
+                      </p>
+                    </div>
                   </div>
                 );
               } else {

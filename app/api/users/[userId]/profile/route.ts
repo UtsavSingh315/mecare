@@ -10,8 +10,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
+  let userId: string | undefined;
   try {
-    const { userId } = await params;
+    const paramsResult = await params;
+    userId = paramsResult.userId;
 
     if (!userId) {
       return NextResponse.json(
@@ -57,6 +59,11 @@ export async function GET(
     return NextResponse.json(userProfile[0]);
   } catch (error) {
     console.error("Error fetching user profile:", error);
+    console.error("Error details:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: userId,
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

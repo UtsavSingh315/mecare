@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   CalendarDays,
   Flame,
@@ -46,6 +46,11 @@ interface CalendarData {
     flowIntensity: string | null;
     notes: string | null;
   }>;
+  predictions?: {
+    nextPeriod: string | null;
+    fertileWindow: string | null;
+    ovulation: string | null;
+  };
 }
 
 interface UserChallenge {
@@ -64,9 +69,18 @@ export default function Home() {
     null
   );
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
+  const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
   const [challenges, setChallenges] = useState<UserChallenge[]>([]);
   const [loading, setLoading] = useState(true);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarCache, setCalendarCache] = useState<Map<string, CalendarData>>(new Map());
   const { user, isAuthenticated, loading: authLoading } = useAuth();
+
+  // Helper function to create dates from API strings in local timezone
+  const createLocalDate = (dateString: string): Date => {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
 
   // Calculate monthly progress from calendar data
   const calculateMonthlyProgress = () => {
@@ -78,7 +92,7 @@ export default function Home() {
     
     // Filter logs for current month and year
     const monthlyLogs = calendarData.logs.filter(log => {
-      const logDate = new Date(log.date);
+      const logDate = createLocalDate(log.date);
       return logDate.getMonth() === currentMonth && 
              logDate.getFullYear() === currentYear &&
              // Only count logs that have actual data (not empty logs)
@@ -97,6 +111,63 @@ export default function Home() {
       daysPassed: daysPassed
     };
   };
+
+  // Separate function for fetching calendar data with caching
+  const fetchCalendarData = useCallback(async (date: Date, isMonthChange = false) => {
+    if (!user || authLoading) return;
+
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const cacheKey = `${year}-${month}`;
+
+    // Check cache first
+    if (calendarCache.has(cacheKey)) {
+      const cachedData = calendarCache.get(cacheKey)!;
+      setCalendarData(cachedData);
+      if (isMonthChange) setCalendarLoading(false);
+      return;
+    }
+
+    try {
+      if (isMonthChange) {
+        setCalendarLoading(true);
+      }
+      
+      const token = localStorage.getItem("auth_token");
+
+      const response = await Promise.race([
+        fetch(`/api/users/${user.id}/calendar?year=${year}&month=${month}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Calendar timeout')), 5000)
+        )
+      ]);
+
+      if ((response as Response).ok) {
+        const data = await (response as Response).json();
+        console.log("Calendar data loaded for", `${year}-${month}`, "with predictions:", data.predictions);
+        setCalendarData(data);
+        
+        // Cache the data
+        setCalendarCache(prev => new Map(prev.set(cacheKey, data)));
+      } else {
+        console.warn("Calendar API failed:", (response as Response).status);
+      }
+    } catch (error) {
+      console.warn("Error fetching calendar data:", error);
+    } finally {
+      if (isMonthChange) {
+        setCalendarLoading(false);
+      }
+    }
+  }, [user, authLoading, calendarCache]);
+
+  // Handle month change from calendar
+  const handleCalendarMonthChange = useCallback((date: Date) => {
+    setCurrentCalendarDate(date);
+    fetchCalendarData(date, true);
+  }, [fetchCalendarData]);
 
   useEffect(() => {
     // Simulate badge unlock animation
@@ -129,70 +200,62 @@ export default function Home() {
         
         // Set defaults immediately
         setDashboardData(defaultDashboard);
-        setCalendarData(defaultCalendar);
-
-        // Fetch dashboard data with timeout
-        const dashboardPromise = Promise.race([
-          fetch(`/api/users/${user.id}/dashboard`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Dashboard timeout')), 5000)
-          )
-        ]);
-
-        try {
-          const dashboardResponse = await dashboardPromise as Response;
-          if (dashboardResponse.ok) {
-            const data = await dashboardResponse.json();
-            setDashboardData(data);
-          }
-        } catch (error) {
-          console.warn("Dashboard API failed, using defaults:", error);
+        if (!calendarData) {
+          setCalendarData(defaultCalendar);
         }
 
-        // Fetch calendar data for current month with timeout
-        const currentDate = new Date();
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth() + 1;
-
-        const calendarPromise = Promise.race([
-          fetch(`/api/users/${user.id}/calendar?year=${year}&month=${month}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Calendar timeout')), 5000)
-          )
+        // Fetch dashboard and challenges data in parallel for better performance
+        const [dashboardResult, challengesResult] = await Promise.allSettled([
+          // Dashboard API with timeout
+          Promise.race([
+            fetch(`/api/users/${user.id}/dashboard`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Dashboard timeout')), 5000)
+            )
+          ]),
+          
+          // Challenges API with timeout
+          Promise.race([
+            fetch(`/api/users/${user.id}/challenges`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Challenges timeout')), 5000)
+            )
+          ])
         ]);
 
-        try {
-          const calendarResponse = await calendarPromise as Response;
-          if (calendarResponse.ok) {
-            const calendarData = await calendarResponse.json();
-            setCalendarData(calendarData);
+        // Process dashboard result
+        if (dashboardResult.status === 'fulfilled') {
+          try {
+            const response = dashboardResult.value as Response;
+            if (response.ok) {
+              const data = await response.json();
+              setDashboardData(data);
+            }
+          } catch (error) {
+            console.warn("Dashboard API response parsing failed:", error);
           }
-        } catch (error) {
-          console.warn("Calendar API failed, using defaults:", error);
+        } else {
+          console.warn("Dashboard API failed:", dashboardResult.reason);
         }
 
-        // Fetch user challenges with timeout
-        const challengesPromise = Promise.race([
-          fetch(`/api/users/${user.id}/challenges`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Challenges timeout')), 5000)
-          )
-        ]);
-
-        try {
-          const challengesResponse = await challengesPromise as Response;
-          if (challengesResponse.ok) {
-            const challengesData = await challengesResponse.json();
-            setChallenges(challengesData.slice(0, 3));
+        // Process challenges result
+        if (challengesResult.status === 'fulfilled') {
+          try {
+            const response = challengesResult.value as Response;
+            if (response.ok) {
+              const data = await response.json();
+              setChallenges(data.slice(0, 3));
+            }
+          } catch (error) {
+            console.warn("Challenges API response parsing failed:", error);
+            setChallenges([]);
           }
-        } catch (error) {
-          console.warn("Challenges API failed, using defaults:", error);
+        } else {
+          console.warn("Challenges API failed:", challengesResult.reason);
           setChallenges([]);
         }
 
@@ -210,6 +273,14 @@ export default function Home() {
       setLoading(false);
     }
   }, [user, isAuthenticated, authLoading]);
+
+  // Separate useEffect for initial calendar data fetch
+  useEffect(() => {
+    if (isAuthenticated && user && !authLoading) {
+      // Fetch calendar data for the current month on initial load
+      fetchCalendarData(currentCalendarDate);
+    }
+  }, [user, isAuthenticated, authLoading, fetchCalendarData, currentCalendarDate]);
 
   if (authLoading || (loading && isAuthenticated) || !dashboardData || !calendarData) {
     return (
@@ -284,10 +355,10 @@ export default function Home() {
         dashboardData.fertilityWindow.end ? (
           <NextCycleCard
             data={{
-              nextPeriod: new Date(dashboardData.nextPeriod),
+              nextPeriod: createLocalDate(dashboardData.nextPeriod),
               fertilityWindow: {
-                start: new Date(dashboardData.fertilityWindow.start),
-                end: new Date(dashboardData.fertilityWindow.end),
+                start: createLocalDate(dashboardData.fertilityWindow.start),
+                end: createLocalDate(dashboardData.fertilityWindow.end),
               },
               currentCycle: dashboardData.currentCycle,
             }}
@@ -312,14 +383,24 @@ export default function Home() {
               Your Calendar
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="relative">
+            {calendarLoading && (
+              <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-10 rounded-lg">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-rose-500 mx-auto"></div>
+                  <p className="text-sm text-gray-600 mt-2">Loading month...</p>
+                </div>
+              </div>
+            )}
             <CalendarView
               logs={calendarData?.logs || []}
               periodDays={calendarData?.periodDays || []}
-              currentDate={new Date()}
+              predictions={calendarData?.predictions}
+              currentDate={currentCalendarDate}
               onDateSelect={(date) => {
                 console.log("Selected date:", date);
               }}
+              onMonthChange={handleCalendarMonthChange}
             />
           </CardContent>
         </Card>

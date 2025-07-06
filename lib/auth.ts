@@ -142,11 +142,14 @@ export async function verifyToken(token: string): Promise<UserSession | null> {
   try {
     // Verify JWT token
     const decoded = jwt.verify(token, JWT_SECRET) as {
-      userId: string;
+      userId?: string;
+      id?: string;
       exp: number;
     };
 
-    if (!decoded.userId) {
+    // Support both userId and id fields for backward compatibility
+    const userId = decoded.userId || decoded.id;
+    if (!userId) {
       return null;
     }
 
@@ -156,7 +159,7 @@ export async function verifyToken(token: string): Promise<UserSession | null> {
     }
 
     const user = await db.query.users.findFirst({
-      where: eq(users.id, decoded.userId),
+      where: eq(users.id, userId),
     });
 
     if (!user) {

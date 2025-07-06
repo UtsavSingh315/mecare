@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserProfile, getUserStreaks, getUserBadges, getTotalDailyLogsCount, getCurrentCycleDay } from "@/lib/db/utils";
+import { getDashboardDataOptimized, getCachedUser } from "@/lib/db/performance-utils";
 import { verifyToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -8,8 +8,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
+  let userId: string | undefined;
   try {
-    const { userId } = await params;
+    const paramsResult = await params;
+    userId = paramsResult.userId;
 
     if (!userId) {
       return NextResponse.json(
@@ -18,49 +20,29 @@ export async function GET(
       );
     }
 
-    // Verify token
+    // Verify token with caching
     const authHeader = request.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const token = authHeader.substring(7);
-    const tokenData = await verifyToken(token);
+    const tokenData = await getCachedUser(token);
     if (!tokenData || tokenData.id !== userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user data
-    const profile = await getUserProfile(userId);
-    if (!profile) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+    // Get optimized dashboard data (all queries run in parallel)
+    const dashboardData = await getDashboardDataOptimized(userId);
 
-    const streaksData = await getUserStreaks(userId);
-    const badges = await getUserBadges(userId);
-
-    // Get actual counts and cycle data
-    const totalLogged = await getTotalDailyLogsCount(userId);
-    const currentCycleDay = await getCurrentCycleDay(userId);
-
-    // Extract current streak from streaks data
-    const currentStreak =
-      streaksData.find((s) => s.type === "logging")?.currentStreak || 0;
-
-    return NextResponse.json({
-      currentStreak: currentStreak,
-      totalLogged: totalLogged,
-      badges: badges.map((b) => b.badge?.name || "Unknown Badge"),
-      currentCycle: currentCycleDay,
-      averageCycle: 28, // This could be made dynamic from user profile
-      nextPeriod: null, // Will be calculated from cycle data
-      fertilityWindow: {
-        start: null,
-        end: null,
-      },
-    });
+    return NextResponse.json(dashboardData);
   } catch (error) {
     console.error("Error fetching user dashboard:", error);
+    console.error("Error details:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: userId,
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

@@ -41,7 +41,16 @@ export async function GET(
     // Get the last 3 months of data for analysis
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    const startDate = threeMonthsAgo.toISOString().split("T")[0];
+    
+    // Timezone-safe date formatting
+    const formatDateSafe = (date: Date): string => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
+    const startDate = formatDateSafe(threeMonthsAgo);
 
     // Get user's daily logs
     const userLogs = await db

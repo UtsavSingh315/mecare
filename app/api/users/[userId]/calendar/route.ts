@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
+import { getCalendarDataOptimized, getCachedUser } from "@/lib/db/performance-utils";
 import { db } from "@/lib/db";
-import { dailyLogs, cycles, periodDays, userProfiles } from "@/lib/db/schema";
+import { userProfiles, dailyLogs, periodDays, cycles } from "@/lib/db/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +11,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
+  let userId: string | undefined;
   try {
-    const { userId } = await params;
+    const paramsResult = await params;
+    userId = paramsResult.userId;
     const { searchParams } = new URL(request.url);
     const year = parseInt(
       searchParams.get("year") || new Date().getFullYear().toString()
@@ -20,6 +23,14 @@ export async function GET(
       searchParams.get("month") || (new Date().getMonth() + 1).toString()
     );
 
+    // Helper function to format date safely without timezone issues
+    const formatDateSafe = (date: Date): string => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
     if (!userId) {
       return NextResponse.json(
         { error: "userId is required" },
@@ -27,36 +38,27 @@ export async function GET(
       );
     }
 
-    // Verify token
+    // Use cached auth verification for better performance
     const authHeader = request.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const token = authHeader.substring(7);
-    const tokenData = await verifyToken(token);
-    if (!tokenData || tokenData.id !== userId) {
+    const user = await getCachedUser(token);
+    if (!user || user.id !== userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get start and end dates for the month
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
-    const startDateStr = startDate.toISOString().split("T")[0];
-    const endDateStr = endDate.toISOString().split("T")[0];
-
-    // Get user profile for cycle preferences
-    const userProfile = await db
-      .select()
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, userId))
-      .limit(1);
+    // Use optimized parallel calendar data query
+    const calendarData = await getCalendarDataOptimized(userId, year, month);
+    const { userProfile, logs, periods, recentCycles } = calendarData;
 
     // Handle missing user profile by creating default values or creating the profile
     let configuredCycleLength = 28;
     let configuredPeriodLength = 5;
 
-    if (userProfile.length === 0) {
+    if (!userProfile) {
       // Create a default profile if it doesn't exist
       try {
         const [newProfile] = await db
@@ -79,43 +81,9 @@ export async function GET(
         );
       }
     } else {
-      configuredCycleLength = userProfile[0].averageCycleLength || 28;
-      configuredPeriodLength = userProfile[0].averagePeriodLength || 5;
+      configuredCycleLength = userProfile.averageCycleLength || 28;
+      configuredPeriodLength = userProfile.averagePeriodLength || 5;
     }
-
-    // Get daily logs for the month
-    const logs = await db
-      .select()
-      .from(dailyLogs)
-      .where(
-        and(
-          eq(dailyLogs.userId, userId),
-          gte(dailyLogs.date, startDateStr),
-          lte(dailyLogs.date, endDateStr)
-        )
-      )
-      .orderBy(dailyLogs.date);
-
-    // Get period days for the month
-    const periods = await db
-      .select()
-      .from(periodDays)
-      .where(
-        and(
-          eq(periodDays.userId, userId),
-          gte(periodDays.date, startDateStr),
-          lte(periodDays.date, endDateStr)
-        )
-      )
-      .orderBy(periodDays.date);
-
-    // Get recent cycles to predict next period
-    const recentCycles = await db
-      .select()
-      .from(cycles)
-      .where(eq(cycles.userId, userId))
-      .orderBy(desc(cycles.startDate))
-      .limit(3);
 
     // Calculate monthly stats
     const periodDaysInMonth = periods.length;
@@ -174,21 +142,19 @@ export async function GET(
           // Current cycle is still ongoing, predict next period
           const nextPeriodStart = new Date(lastPeriodStart);
           nextPeriodStart.setDate(lastPeriodStart.getDate() + cycleLength);
-          nextPeriodPrediction = nextPeriodStart.toISOString().split("T")[0];
+          nextPeriodPrediction = formatDateSafe(nextPeriodStart);
 
           // Predict ovulation (typically 14 days before next period)
           const ovulationDate = new Date(nextPeriodStart);
           ovulationDate.setDate(nextPeriodStart.getDate() - 14);
-          ovulationPrediction = ovulationDate.toISOString().split("T")[0];
+          ovulationPrediction = formatDateSafe(ovulationDate);
 
           // Predict fertile window (5 days before ovulation to 1 day after)
           const fertileStart = new Date(ovulationDate);
           fertileStart.setDate(ovulationDate.getDate() - 5);
           const fertileEnd = new Date(ovulationDate);
           fertileEnd.setDate(ovulationDate.getDate() + 1);
-          fertileWindowPrediction = `${
-            fertileStart.toISOString().split("T")[0]
-          } to ${fertileEnd.toISOString().split("T")[0]}`;
+          fertileWindowPrediction = `${formatDateSafe(fertileStart)} to ${formatDateSafe(fertileEnd)}`;
         } else {
           // Cycle might be overdue or completed, calculate from last known start
           const nextPeriodStart = new Date(lastPeriodStart);
@@ -199,29 +165,27 @@ export async function GET(
             nextPeriodStart.setDate(nextPeriodStart.getDate() + cycleLength);
           }
 
-          nextPeriodPrediction = nextPeriodStart.toISOString().split("T")[0];
+          nextPeriodPrediction = formatDateSafe(nextPeriodStart);
 
           // Calculate ovulation and fertile window
           const ovulationDate = new Date(nextPeriodStart);
           ovulationDate.setDate(nextPeriodStart.getDate() - 14);
           if (ovulationDate > today) {
-            ovulationPrediction = ovulationDate.toISOString().split("T")[0];
+            ovulationPrediction = formatDateSafe(ovulationDate);
 
             const fertileStart = new Date(ovulationDate);
             fertileStart.setDate(ovulationDate.getDate() - 5);
             const fertileEnd = new Date(ovulationDate);
             fertileEnd.setDate(ovulationDate.getDate() + 1);
-            fertileWindowPrediction = `${
-              fertileStart.toISOString().split("T")[0]
-            } to ${fertileEnd.toISOString().split("T")[0]}`;
+            fertileWindowPrediction = `${formatDateSafe(fertileStart)} to ${formatDateSafe(fertileEnd)}`;
           }
         }
       }
     } else {
       // No cycle history, use configured cycle length from last known period start
-      if (userProfile[0]?.lastPeriodStart) {
+      if (userProfile?.lastPeriodStart) {
         const lastPeriodStart = new Date(
-          userProfile[0].lastPeriodStart + "T00:00:00"
+          userProfile.lastPeriodStart + "T00:00:00"
         );
         const today = new Date();
 
@@ -237,27 +201,25 @@ export async function GET(
           );
         }
 
-        nextPeriodPrediction = nextPeriodStart.toISOString().split("T")[0];
+        nextPeriodPrediction = formatDateSafe(nextPeriodStart);
 
         // Calculate ovulation and fertile window
         const ovulationDate = new Date(nextPeriodStart);
         ovulationDate.setDate(nextPeriodStart.getDate() - 14);
         if (ovulationDate > today) {
-          ovulationPrediction = ovulationDate.toISOString().split("T")[0];
+          ovulationPrediction = formatDateSafe(ovulationDate);
 
           const fertileStart = new Date(ovulationDate);
           fertileStart.setDate(ovulationDate.getDate() - 5);
           const fertileEnd = new Date(ovulationDate);
           fertileEnd.setDate(ovulationDate.getDate() + 1);
-          fertileWindowPrediction = `${
-            fertileStart.toISOString().split("T")[0]
-          } to ${fertileEnd.toISOString().split("T")[0]}`;
+          fertileWindowPrediction = `${formatDateSafe(fertileStart)} to ${formatDateSafe(fertileEnd)}`;
         }
       }
     }
 
     // Format data for calendar
-    const calendarData = {
+    const responseData = {
       year,
       month,
       logs: logs.map((log) => ({
@@ -291,9 +253,14 @@ export async function GET(
       },
     };
 
-    return NextResponse.json(calendarData);
+    return NextResponse.json(responseData);
   } catch (error) {
     console.error("Error fetching calendar data:", error);
+    console.error("Error details:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: userId,
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

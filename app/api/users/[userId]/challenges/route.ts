@@ -10,8 +10,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
+  let userId: string | undefined;
   try {
-    const { userId } = await params;
+    const paramsResult = await params;
+    userId = paramsResult.userId;
 
     if (!userId) {
       return NextResponse.json(
@@ -50,7 +52,7 @@ export async function GET(
       })
       .from(userChallenges)
       .innerJoin(challenges, eq(userChallenges.challengeId, challenges.id))
-      .where(eq(userChallenges.userId, userId))
+      .where(eq(userChallenges.userId, userId!))
       .orderBy(userChallenges.joinedAt);
 
     // Calculate real-time progress for each challenge
@@ -66,7 +68,7 @@ export async function GET(
             .select({ count: count() })
             .from(dailyLogs)
             .where(
-              and(eq(dailyLogs.userId, userId), gte(dailyLogs.date, startDate))
+              and(eq(dailyLogs.userId, userId!), gte(dailyLogs.date, startDate))
             );
           actualProgress = logCount[0]?.count || 0;
         } else if (challenge.type === "streak") {
@@ -80,7 +82,7 @@ export async function GET(
             .from(dailyLogs)
             .where(
               and(
-                eq(dailyLogs.userId, userId),
+                eq(dailyLogs.userId, userId!),
                 gte(dailyLogs.date, startDate),
                 eq(dailyLogs.isOnPeriod, true)
               )
@@ -103,6 +105,11 @@ export async function GET(
     return NextResponse.json(enrichedChallenges);
   } catch (error) {
     console.error("Error fetching user challenges:", error);
+    console.error("Error details:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: userId,
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

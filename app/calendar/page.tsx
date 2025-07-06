@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { Calendar, Plus } from "lucide-react";
 import { CalendarView } from "@/components/calendar-view";
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
@@ -49,6 +49,8 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [monthChangeLoading, setMonthChangeLoading] = useState(false);
+  const [calendarCache, setCalendarCache] = useState<Map<string, CalendarData>>(new Map());
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
 
@@ -67,14 +69,29 @@ export default function CalendarPage() {
     "December",
   ];
 
-  const fetchCalendarData = async (date: Date) => {
+  const fetchCalendarData = async (date: Date, isMonthChange = false) => {
     if (!user || authLoading) return;
 
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const cacheKey = `${year}-${month}`;
+
+    // Check cache first
+    if (calendarCache.has(cacheKey)) {
+      const cachedData = calendarCache.get(cacheKey)!;
+      setCalendarData(cachedData);
+      if (!isMonthChange) setLoading(false);
+      return;
+    }
+
     try {
-      setLoading(true);
+      if (isMonthChange) {
+        setMonthChangeLoading(true);
+      } else {
+        setLoading(true);
+      }
+      
       const token = localStorage.getItem("auth_token");
-      const year = date.getFullYear();
-      const month = date.getMonth() + 1;
 
       const response = await fetch(
         `/api/users/${user.id}/calendar?year=${year}&month=${month}`,
@@ -88,6 +105,9 @@ export default function CalendarPage() {
       if (response.ok) {
         const data = await response.json();
         setCalendarData(data);
+        
+        // Cache the data
+        setCalendarCache(prev => new Map(prev.set(cacheKey, data)));
       } else {
         console.error("Failed to fetch calendar data:", response.status);
         toast.error("Failed to load calendar data", {
@@ -100,7 +120,11 @@ export default function CalendarPage() {
         description: "Please check your connection and try again.",
       });
     } finally {
-      setLoading(false);
+      if (isMonthChange) {
+        setMonthChangeLoading(false);
+      } else {
+        setLoading(false);
+      }
     }
   };
 
@@ -110,22 +134,10 @@ export default function CalendarPage() {
     }
   }, [user, isAuthenticated, currentDate, authLoading]);
 
-  const goToPreviousMonth = () => {
-    const newDate = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth() - 1,
-      1
-    );
-    setCurrentDate(newDate);
-  };
-
-  const goToNextMonth = () => {
-    const newDate = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth() + 1,
-      1
-    );
-    setCurrentDate(newDate);
+  const handleMonthChange = (date: Date) => {
+    setCurrentDate(date);
+    // Use month change loading instead of full page loading
+    fetchCalendarData(date, true);
   };
 
   const goToToday = () => {
@@ -171,33 +183,28 @@ export default function CalendarPage() {
           </Button>
         </div>
 
-        {/* Month Navigation */}
-        <div className="flex items-center justify-between">
-          <Button
-            onClick={goToPreviousMonth}
-            variant="ghost"
-            size="sm"
-            className="text-white hover:bg-white/20">
-            <ChevronLeft className="w-5 h-5" />
-          </Button>
-
+        {/* Current Month Display */}
+        <div className="text-center">
           <h2 className="text-xl font-semibold">
             {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
           </h2>
-
-          <Button
-            onClick={goToNextMonth}
-            variant="ghost"
-            size="sm"
-            className="text-white hover:bg-white/20">
-            <ChevronRight className="w-5 h-5" />
-          </Button>
+          <p className="text-rose-100 text-sm mt-1">
+            Use the calendar navigation below to switch months
+          </p>
         </div>
       </div>
 
       {/* Calendar */}
       <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
         <CardContent className="p-6">
+          {monthChangeLoading && (
+            <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-10 rounded-lg">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-rose-500 mx-auto"></div>
+                <p className="text-sm text-gray-600 mt-2">Loading month...</p>
+              </div>
+            </div>
+          )}
           <CalendarView
             logs={calendarData?.logs || []}
             periodDays={calendarData?.periodDays || []}
@@ -207,6 +214,7 @@ export default function CalendarPage() {
               // Optional: Handle date selection for additional actions
               console.log("Selected date:", date);
             }}
+            onMonthChange={handleMonthChange}
           />
         </CardContent>
       </Card>
