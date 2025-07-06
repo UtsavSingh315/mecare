@@ -191,10 +191,21 @@ export default function SettingsPage() {
       {/* Reminder Settings */}
       <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-gray-800">
-            <Bell className="w-5 h-5 text-rose-500" />
-            Reminders & Notifications
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-gray-800">
+              <Bell className="w-5 h-5 text-rose-500" />
+              Reminders & Notifications
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.location.href = "/settings/notifications"}
+              className="text-sm border-rose-200 text-rose-600 hover:bg-rose-50"
+            >
+              <SettingsIcon className="w-4 h-4 mr-1" />
+              Advanced Settings
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Period Reminder */}

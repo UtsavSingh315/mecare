@@ -245,21 +245,30 @@ export function NotificationBell() {
                     );
                   })}
                 </div>
-                {notifications.length > 10 && (
-                  <div className="p-3 border-t">
+                <div className="p-3 border-t space-y-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-sm"
+                    onClick={() => {
+                      setIsOpen(false);
+                      window.location.href = "/settings/notifications";
+                    }}>
+                    Notification Settings
+                  </Button>
+                  {notifications.length > 10 && (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="w-full text-sm"
                       onClick={() => {
                         setIsOpen(false);
-                        // Navigate to full notifications page
                         window.location.href = "/notifications";
                       }}>
                       View all notifications ({notifications.length})
                     </Button>
-                  </div>
-                )}
+                  )}
+                </div>
               </ScrollArea>
             )}
           </CardContent>

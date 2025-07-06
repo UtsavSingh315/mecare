@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Bell, Save, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +28,7 @@ export default function NotificationSettingsPage() {
   const { createNotification } = useNotifications();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [autoSaving, setAutoSaving] = useState(false);
   const [settings, setSettings] = useState<ReminderSetting[]>([]);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushSupported, setPushSupported] = useState(false);
@@ -85,6 +86,15 @@ export default function NotificationSettingsPage() {
     }
   }, [user]);
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (debouncedSave.current) {
+        clearTimeout(debouncedSave.current);
+      }
+    };
+  }, []);
+
   const fetchSettings = async () => {
     if (!user) return;
 
@@ -139,14 +149,86 @@ export default function NotificationSettingsPage() {
     }
   };
 
+  // Debounced auto-save function
+  const debouncedSave = useRef<NodeJS.Timeout | null>(null);
+
   const updateSetting = (type: string, field: keyof ReminderSetting, value: any) => {
-    setSettings(prev => 
-      prev.map(setting => 
+    // Update settings state
+    setSettings(prev => {
+      const updatedSettings = prev.map(setting => 
         setting.type === type 
           ? { ...setting, [field]: value }
           : setting
-      )
-    );
+      );
+      
+      // Clear existing timeout
+      if (debouncedSave.current) {
+        clearTimeout(debouncedSave.current);
+      }
+      
+      // Set new timeout with the updated setting
+      const updatedSetting = updatedSettings.find(s => s.type === type);
+      if (updatedSetting) {
+        debouncedSave.current = setTimeout(() => {
+          autoSaveSingleSetting(updatedSetting);
+        }, 1000);
+      }
+      
+      return updatedSettings;
+    });
+  };
+
+  const autoSaveSingleSetting = async (setting: ReminderSetting) => {
+    if (!user) return;
+
+    try {
+      setAutoSaving(true);
+      const token = localStorage.getItem("auth_token");
+
+      const url = setting.id.startsWith('new-') 
+        ? `/api/users/${user.id}/reminder-settings`
+        : `/api/users/${user.id}/reminder-settings/${setting.id}`;
+      
+      const method = setting.id.startsWith('new-') ? 'POST' : 'PUT';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: setting.type,
+          isEnabled: setting.isEnabled,
+          time: setting.time,
+          frequency: setting.frequency,
+          message: setting.message,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save ${setting.type} setting`);
+      }
+
+      // If this was a new setting, update the ID with the returned ID
+      if (setting.id.startsWith('new-')) {
+        const savedSetting = await response.json();
+        setSettings(prev => prev.map(s => 
+          s.type === setting.type 
+            ? { ...s, id: savedSetting.id }
+            : s
+        ));
+      }
+
+      // Show subtle success indicator
+      toast.success("Settings saved automatically", { duration: 2000 });
+      
+    } catch (error) {
+      console.error("Error auto-saving setting:", error);
+      toast.error("Failed to auto-save settings. Please click Save manually.");
+    } finally {
+      setAutoSaving(false);
+    }
   };
 
   const saveSettings = async () => {
@@ -206,6 +288,31 @@ export default function NotificationSettingsPage() {
       });
       
       toast.success("Test notification sent!");
+    } catch (error) {
+      console.error("Error sending test notification:", error);
+      toast.error("Failed to send test notification");
+    }
+  };
+
+  const testNotification = async () => {
+    if (!user) return;
+
+    try {
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch(`/api/test/notifications/immediate?type=log`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        toast.success("Test notification sent! Check your notifications.");
+        // Refresh notifications after sending test
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        throw new Error("Failed to send test notification");
+      }
     } catch (error) {
       console.error("Error sending test notification:", error);
       toast.error("Failed to send test notification");
@@ -288,10 +395,24 @@ export default function NotificationSettingsPage() {
             <h1 className="text-2xl font-bold">Notification Settings</h1>
             <p className="text-rose-100">Customize your notification preferences</p>
           </div>
+          <Link href="/notifications">
+            <Button variant="ghost" size="sm" className="text-white hover:bg-white/20">
+              <Bell className="h-4 w-4 mr-2" />
+              View Notifications
+            </Button>
+          </Link>
         </div>
       </div>
 
       <div className="p-4 space-y-6">
+        {/* Auto-save indicator */}
+        {autoSaving && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+            <span className="text-sm text-blue-800">Auto-saving changes...</span>
+          </div>
+        )}
+
         {loading ? (
           <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
             <CardContent className="p-8 text-center">
@@ -487,7 +608,15 @@ export default function NotificationSettingsPage() {
             </Card>
 
             {/* Save Button */}
-            <div className="flex justify-end">
+            <div className="flex justify-between">
+              <Button 
+                onClick={testNotification} 
+                variant="outline"
+                disabled={saving}
+                className="border-rose-500 text-rose-500 hover:bg-rose-50">
+                <Bell className="h-4 w-4 mr-2" />
+                Test Notification
+              </Button>
               <Button 
                 onClick={saveSettings} 
                 disabled={saving}

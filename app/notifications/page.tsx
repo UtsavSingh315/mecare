@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Bell, Check, Trash2, RefreshCw, MoreVertical } from "lucide-react";
+import { ArrowLeft, Bell, Check, Trash2, RefreshCw, MoreVertical, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -109,13 +109,22 @@ export default function NotificationsPage() {
               {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up!'}
             </p>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={refreshNotifications}
-            className="text-white hover:bg-white/20">
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => window.location.href = '/settings/notifications'}
+              className="text-white hover:bg-white/20">
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={refreshNotifications}
+              className="text-white hover:bg-white/20">
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 import { NotificationService } from "./service";
 import { db } from "@/lib/db";
-import { dailyLogs, periodDays, userProfiles, reminderSettings } from "@/lib/db/schema";
+import { dailyLogs, periodDays, userProfiles, reminderSettings, notifications } from "@/lib/db/schema";
 import { eq, and, desc, gte, lte } from "drizzle-orm";
 
 export class NotificationScheduler {
@@ -76,7 +76,7 @@ export class NotificationScheduler {
     }
   }
 
-  // Check and create log reminders
+  // Check and create log reminders with time consideration
   static async checkLogReminders() {
     try {
       console.log("Checking log reminders...");
@@ -93,8 +93,29 @@ export class NotificationScheduler {
           eq(reminderSettings.isEnabled, true)
         ));
 
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+
       for (const reminder of logReminders) {
-        await this.createLogReminderForUser(reminder.userId);
+        // Check if it's time to send the reminder
+        if (reminder.time) {
+          const [hour, minute] = reminder.time.split(':').map(Number);
+          
+          // Send reminder if we're at or past the scheduled time but within the same hour
+          // This allows for more flexible cron job timing
+          if (currentHour === hour && currentMinute >= minute) {
+            await this.createLogReminderForUser(reminder.userId);
+          } else if (currentHour > hour) {
+            // Also send if we're past the scheduled hour (in case cron job is delayed)
+            await this.createLogReminderForUser(reminder.userId);
+          }
+        } else {
+          // Default time if no time is set (8 PM)
+          if (currentHour >= 20) {
+            await this.createLogReminderForUser(reminder.userId);
+          }
+        }
       }
     } catch (error) {
       console.error("Error checking log reminders:", error);
@@ -118,11 +139,33 @@ export class NotificationScheduler {
 
       // Only send reminder if they haven't logged today
       if (todayLog.length === 0) {
-        const enabled = await NotificationService.isNotificationEnabled(userId, "log");
-        if (enabled) {
-          await NotificationService.createLogReminder(userId);
-          console.log(`Created log reminder for user ${userId}`);
+        // Check if we've already sent a log reminder today
+        const todayStart = new Date(today + 'T00:00:00.000Z');
+        const todayEnd = new Date(today + 'T23:59:59.999Z');
+        
+        const existingReminder = await db
+          .select()
+          .from(notifications)
+          .where(and(
+            eq(notifications.userId, userId),
+            eq(notifications.type, "log"),
+            gte(notifications.createdAt, todayStart),
+            lte(notifications.createdAt, todayEnd)
+          ))
+          .limit(1);
+
+        // Only create reminder if we haven't sent one today
+        if (existingReminder.length === 0) {
+          const enabled = await NotificationService.isNotificationEnabled(userId, "log");
+          if (enabled) {
+            await NotificationService.createLogReminder(userId);
+            console.log(`Created log reminder for user ${userId}`);
+          }
+        } else {
+          console.log(`Log reminder already sent today for user ${userId}`);
         }
+      } else {
+        console.log(`User ${userId} has already logged today`);
       }
     } catch (error) {
       console.error(`Error creating log reminder for user ${userId}:`, error);
