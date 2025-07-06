@@ -140,13 +140,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await response.json();
 
       if (response.ok) {
-        setUser(data.user);
-        localStorage.setItem("auth_token", data.token);
-        localStorage.setItem("user_data", JSON.stringify(data.user));
-        localStorage.setItem("user_name", data.user.name);
-
-        toast.success("Welcome to MeCare! 🌸", {
-          description: `Hi ${data.user.name}! Your account has been created successfully.`,
+        // Don't auto-login, just return success
+        toast.success("Account created successfully! 🌸", {
+          description: `Hi ${userData.name}! Please log in with your new credentials.`,
         });
 
         return true;

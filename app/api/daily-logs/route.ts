@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createDailyLog, getDailyLogByDate } from "@/lib/db/utils";
 import { verifyToken } from "@/lib/auth";
 import { ChallengeEngine } from "@/lib/challenge-engine";
+import { db } from "@/lib/db";
+import { dailyLogs } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +41,10 @@ export async function POST(request: NextRequest) {
     const existingLog = await getDailyLogByDate(userId, logData.date);
     if (existingLog) {
       return NextResponse.json(
-        { error: "Log already exists for this date" },
+        { 
+          error: "Log already exists for this date", 
+          suggestion: "Try editing your existing log or choose a different date" 
+        },
         { status: 409 }
       );
     }
@@ -100,6 +106,56 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error fetching daily log:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    // Verify authentication
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const token = authHeader.substring(7);
+    const tokenData = await verifyToken(token);
+    if (!tokenData) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { userId, date } = body;
+
+    if (!userId || !date) {
+      return NextResponse.json(
+        { error: "userId and date are required" },
+        { status: 400 }
+      );
+    }
+
+    // Ensure user can only delete their own logs
+    if (tokenData.id !== userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Delete the daily log (this will cascade delete related symptoms)
+    await db.delete(dailyLogs).where(
+      and(
+        eq(dailyLogs.userId, userId),
+        eq(dailyLogs.date, date)
+      )
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: "Daily log deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting daily log:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

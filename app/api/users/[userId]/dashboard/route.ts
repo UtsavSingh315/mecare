@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserProfile, getUserStreaks, getUserBadges } from "@/lib/db/utils";
+import { getUserProfile, getUserStreaks, getUserBadges, getTotalDailyLogsCount, getCurrentCycleDay } from "@/lib/db/utils";
 import { verifyToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -39,21 +39,21 @@ export async function GET(
     const streaksData = await getUserStreaks(userId);
     const badges = await getUserBadges(userId);
 
+    // Get actual counts and cycle data
+    const totalLogged = await getTotalDailyLogsCount(userId);
+    const currentCycleDay = await getCurrentCycleDay(userId);
+
     // Extract current streak from streaks data
     const currentStreak =
-      streaksData.find((s) => s.type === "daily_log")?.currentStreak || 0;
-
-    // For now, return basic data (can be enhanced later with cycle tracking)
-    const totalLogged =
-      streaksData.find((s) => s.type === "daily_log")?.longestStreak || 0;
+      streaksData.find((s) => s.type === "logging")?.currentStreak || 0;
 
     return NextResponse.json({
-      currentStreak: currentStreak || 0,
-      totalLogged: totalLogged || 0,
+      currentStreak: currentStreak,
+      totalLogged: totalLogged,
       badges: badges.map((b) => b.badge?.name || "Unknown Badge"),
-      currentCycle: 1, // Default to day 1 until cycle tracking is implemented
-      averageCycle: 28, // Default cycle length
-      nextPeriod: null, // Will be calculated when cycle data is available
+      currentCycle: currentCycleDay,
+      averageCycle: 28, // This could be made dynamic from user profile
+      nextPeriod: null, // Will be calculated from cycle data
       fertilityWindow: {
         start: null,
         end: null,

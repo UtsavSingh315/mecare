@@ -2,6 +2,7 @@ import { db } from "./index";
 import {
   dailyLogs,
   cycles,
+  periodDays,
   streaks,
   userBadges,
   badges,
@@ -10,6 +11,7 @@ import {
   cyclePredictions,
   userInsights,
   users,
+  userProfiles,
 } from "./schema";
 import { eq, and, gte, lte, desc, asc, count, avg, sql } from "drizzle-orm";
 
@@ -42,37 +44,174 @@ export async function createDailyLog(
     symptoms?: string[];
   }
 ) {
-  // Insert daily log
-  const [dailyLog] = await db
-    .insert(dailyLogs)
-    .values({
-      userId,
-      date: logData.date,
-      mood: logData.mood,
-      painLevel: logData.painLevel,
-      energyLevel: logData.energyLevel,
-      waterIntake: logData.waterIntake,
-      sleepHours: logData.sleepHours?.toString(),
-      exerciseMinutes: logData.exerciseMinutes,
-      weight: logData.weight?.toString(),
-      notes: logData.notes,
-      isOnPeriod: logData.isOnPeriod,
-    })
-    .returning();
+  // Use transaction to ensure all operations succeed or fail together
+  return await db.transaction(async (tx) => {
+    // Insert daily log
+    const [dailyLog] = await tx
+      .insert(dailyLogs)
+      .values({
+        userId,
+        date: logData.date,
+        mood: logData.mood,
+        painLevel: logData.painLevel,
+        energyLevel: logData.energyLevel,
+        waterIntake: logData.waterIntake,
+        sleepHours: logData.sleepHours?.toString(),
+        exerciseMinutes: logData.exerciseMinutes,
+        weight: logData.weight?.toString(),
+        notes: logData.notes,
+        isOnPeriod: logData.isOnPeriod,
+      })
+      .returning();
 
-  // Insert symptoms if provided
-  if (logData.symptoms && logData.symptoms.length > 0) {
-    const symptomEntries = logData.symptoms.map((symptomId) => ({
-      dailyLogId: dailyLog.id,
-      symptomId,
-    }));
-    await db.insert(dailyLogSymptoms).values(symptomEntries);
-  }
+    // Insert symptoms if provided
+    if (logData.symptoms && logData.symptoms.length > 0) {
+      // Find or create symptom records for each symptom name
+      const symptomIds: string[] = [];
+      
+      for (const symptomName of logData.symptoms) {
+        // First, try to find existing symptom
+        const existingSymptom = await tx
+          .select()
+          .from(symptoms)
+          .where(eq(symptoms.name, symptomName))
+          .limit(1);
+        
+        if (existingSymptom.length > 0) {
+          symptomIds.push(existingSymptom[0].id);
+        } else {
+          // Create new symptom if it doesn't exist
+          const [newSymptom] = await tx
+            .insert(symptoms)
+            .values({
+              name: symptomName,
+              category: 'physical', // default category
+              isDefault: false,
+            })
+            .returning();
+          symptomIds.push(newSymptom.id);
+        }
+      }
+      
+      // Now insert the symptom entries with proper UUIDs
+      if (symptomIds.length > 0) {
+        const symptomEntries = symptomIds.map((symptomId) => ({
+          dailyLogId: dailyLog.id,
+          symptomId,
+        }));
+        await tx.insert(dailyLogSymptoms).values(symptomEntries);
+      }
+    }
 
-  // Update streaks
-  await updateUserStreaks(userId, logData.date);
+    // Handle period tracking and cycle management
+    if (logData.isOnPeriod) {
+      // Check if this is the start of a new period
+      const yesterday = new Date(logData.date);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      
+      // Check if yesterday was NOT a period day
+      const yesterdayLog = await tx
+        .select()
+        .from(dailyLogs)
+        .where(and(
+          eq(dailyLogs.userId, userId),
+          eq(dailyLogs.date, yesterdayStr)
+        ))
+        .limit(1);
+      
+      // Also check for long gaps - if the last period log was more than 45 days ago, this is definitely a new period
+      const last45Days = new Date(logData.date);
+      last45Days.setDate(last45Days.getDate() - 45);
+      const last45DaysStr = last45Days.toISOString().split('T')[0];
+      
+      const recentPeriodLogs = await tx
+        .select()
+        .from(dailyLogs)
+        .where(and(
+          eq(dailyLogs.userId, userId),
+          gte(dailyLogs.date, last45DaysStr),
+          lte(dailyLogs.date, yesterdayStr),
+          eq(dailyLogs.isOnPeriod, true)
+        ))
+        .limit(1);
+      
+      const isNewPeriodStart = !yesterdayLog[0]?.isOnPeriod || recentPeriodLogs.length === 0;
+      
+      if (isNewPeriodStart) {
+        // End any active cycles - calculate cycle length first
+        const endDate = logData.date;
+        
+        // Get active cycles first to calculate length
+        const activeCycles = await tx
+          .select()
+          .from(cycles)
+          .where(and(eq(cycles.userId, userId), eq(cycles.isActive, true)));
+        
+        // Update each active cycle with calculated length
+        for (const cycle of activeCycles) {
+          const startDate = new Date(cycle.startDate + "T00:00:00");
+          const currentEndDate = new Date(endDate + "T00:00:00");
+          const cycleLength = Math.ceil((currentEndDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+          
+          await tx
+            .update(cycles)
+            .set({ 
+              isActive: false,
+              endDate: endDate,
+              cycleLength: cycleLength
+            })
+            .where(eq(cycles.id, cycle.id));
+        }
 
-  return dailyLog;
+        // Start new cycle
+        await tx.insert(cycles).values({
+          userId,
+          startDate: logData.date,
+          isActive: true,
+          notes: `Period started on ${logData.date}`
+        });
+
+        // Update user profile with new period start date
+        // First check if profile exists, if not create it
+        const existingProfile = await tx
+          .select()
+          .from(userProfiles)
+          .where(eq(userProfiles.userId, userId))
+          .limit(1);
+
+        if (existingProfile.length === 0) {
+          // Create user profile if it doesn't exist
+          await tx.insert(userProfiles).values({
+            userId,
+            averageCycleLength: 28,
+            averagePeriodLength: 5,
+            lastPeriodStart: logData.date,
+            timezone: 'UTC'
+          });
+        } else {
+          // Update existing profile
+          await tx
+            .update(userProfiles)
+            .set({ lastPeriodStart: logData.date })
+            .where(eq(userProfiles.userId, userId));
+        }
+      }
+      
+      // Create period day entry for any period (whether new cycle or continuing)
+      await tx.insert(periodDays).values({
+        userId,
+        date: logData.date,
+        flowIntensity: 'medium', // Default, could be made configurable
+        cycleId: null // Will be updated when we have proper cycle management
+      });
+    }
+
+    // Update streaks (keep this outside transaction since it's separate functionality)
+    await updateUserStreaks(userId, logData.date);
+
+    return dailyLog;
+  });
 }
 
 export async function getUserDailyLogs(
@@ -484,4 +623,32 @@ export async function getLatestPrediction(userId: string) {
     where: eq(cyclePredictions.userId, userId),
     orderBy: desc(cyclePredictions.createdAt),
   });
+}
+
+export async function getTotalDailyLogsCount(userId: string): Promise<number> {
+  const result = await db
+    .select({ count: count() })
+    .from(dailyLogs)
+    .where(eq(dailyLogs.userId, userId));
+  
+  return result[0]?.count || 0;
+}
+
+export async function getCurrentCycleDay(userId: string): Promise<number> {
+  // Get the most recent active cycle
+  const activeCycle = await db
+    .select()
+    .from(cycles)
+    .where(and(eq(cycles.userId, userId), eq(cycles.isActive, true)))
+    .limit(1);
+  
+  if (activeCycle.length === 0) {
+    return 1; // Default to day 1 if no active cycle
+  }
+  
+  const cycleStart = new Date(activeCycle[0].startDate + "T00:00:00");
+  const today = new Date();
+  const daysDiff = Math.floor((today.getTime() - cycleStart.getTime()) / (1000 * 60 * 60 * 24));
+  
+  return Math.max(1, daysDiff + 1); // Ensure at least day 1
 }

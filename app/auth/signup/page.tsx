@@ -75,7 +75,7 @@ export default function SignupPage() {
 
     const success = await signup(signupData);
     if (success) {
-      router.push("/");
+      router.push("/auth/login");
     }
   };
 

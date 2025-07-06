@@ -34,3 +34,33 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Test and debug scripts
+debug-cycle.mjs
+test-prediction.mjs
+test-period-log.mjs
+test-new-cycle.mjs
+test-period-days-fix.mjs
+fix-cycle-test.mjs
+check-period-days.mjs
+check-period-days-pg.mjs
+check-period-days-fixed.mjs
+final-period-check.mjs
+inspect-db.mjs
+simple-db-check.mjs
+check-columns.mjs
+final-verification.mjs
+check-db.mjs
+test-api.sh
+test-delete.js
+check-users.js
+test-jwt-auth.sh
+debug-settings.js
+test-daily-log.js
+test-symptoms.js
+test-prediction.js
+cleanup-daily-logs.js
+
+# Database files
+*.db
+health-tracker.db
