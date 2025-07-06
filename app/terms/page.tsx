@@ -1,3 +1,5 @@
+"use client";
+
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white p-4">

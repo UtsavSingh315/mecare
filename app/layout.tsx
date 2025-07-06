@@ -1,13 +1,16 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { Navigation } from "@/components/navigation";
-import { AuthGuard } from "@/components/auth-guard";
 import { AuthProvider } from "@/contexts/auth-context";
 import { NotificationsProvider } from "@/contexts/notifications-context";
 import { Toaster } from "@/components/ui/sonner";
+import { ClientLayout } from "@/components/client-layout";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ 
+  subsets: ["latin"],
+  display: "swap", // Improve font loading performance
+  preload: true,
+});
 
 export const metadata: Metadata = {
   title: "MeCare - Period Tracker",
@@ -41,10 +44,9 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           <NotificationsProvider>
-            <AuthGuard>
-              <main className="pb-20 min-h-screen">{children}</main>
-              <Navigation />
-            </AuthGuard>
+            <ClientLayout>
+              {children}
+            </ClientLayout>
           </NotificationsProvider>
           <Toaster />
         </AuthProvider>

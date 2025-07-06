@@ -14,6 +14,7 @@ import {
   BarChart3,
   Zap,
 } from "lucide-react";
+import { LoadingSpinner } from "@/components/ui/loading";
 import { useAuth } from "@/contexts/auth-context";
 import {
   BarChart,

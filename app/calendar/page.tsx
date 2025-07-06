@@ -1,15 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, Plus } from "lucide-react";
-import { CalendarView } from "@/components/calendar-view";
+import { LoadingSpinner, CardLoader } from "@/components/ui/loading";
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
 import { formatDate, formatDateShort } from "@/lib/utils";
 import { toast } from "sonner";
+
+// Dynamically import the CalendarView component
+const CalendarView = dynamic(() => import("@/components/calendar-view").then(mod => ({ default: mod.CalendarView })), {
+  loading: () => <CardLoader message="Loading calendar..." />,
+  ssr: false,
+});
 
 interface CalendarData {
   year: number;

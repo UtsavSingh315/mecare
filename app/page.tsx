@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import {
   CalendarDays,
   Flame,
@@ -13,12 +14,36 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { CalendarView } from "@/components/calendar-view";
-import { NextCycleCard } from "@/components/next-cycle-card";
-import { AffirmationCard } from "@/components/affirmation-card";
-import { TodoList } from "@/components/todo-list";
-import { NotificationBell } from "@/components/notification-bell";
+import { LoadingSpinner, CardLoader } from "@/components/ui/loading";
 import { useAuth } from "@/contexts/auth-context";
+
+// Dynamically import heavy components for better performance
+const CalendarView = dynamic(() => import("@/components/calendar-view").then(mod => ({ default: mod.CalendarView })), {
+  loading: () => <CardLoader message="Loading calendar..." />,
+  ssr: false,
+});
+
+const NextCycleCard = dynamic(() => import("@/components/next-cycle-card").then(mod => ({ default: mod.NextCycleCard })), {
+  loading: () => <CardLoader message="Loading cycle info..." />,
+  ssr: false,
+});
+
+const AffirmationCard = dynamic(() => import("@/components/affirmation-card").then(mod => ({ default: mod.AffirmationCard })), {
+  loading: () => <CardLoader message="Loading affirmation..." />,
+  ssr: false,
+});
+
+const TodoList = dynamic(() => import("@/components/todo-list").then(mod => ({ default: mod.TodoList })), {
+  loading: () => <CardLoader message="Loading todos..." />,
+  ssr: false,
+});
+
+const NotificationBell = dynamic(() => import("@/components/notification-bell").then(mod => ({ default: mod.NotificationBell })), {
+  loading: () => (
+    <div className="w-10 h-10 rounded-full bg-gray-100 animate-pulse"></div>
+  ),
+  ssr: false,
+});
 
 interface DashboardData {
   currentStreak: number;
@@ -283,13 +308,26 @@ export default function Home() {
     }
   }, [user, isAuthenticated, authLoading, fetchCalendarData, currentCalendarDate]);
 
-  if (authLoading || (loading && isAuthenticated) || !dashboardData || !calendarData) {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your dashboard...</p>
-        </div>
+        <LoadingSpinner message="Authenticating..." size="lg" />
+      </div>
+    );
+  }
+
+  if (loading && isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white flex items-center justify-center">
+        <LoadingSpinner message="Loading your dashboard..." size="lg" />
+      </div>
+    );
+  }
+
+  if (!dashboardData || !calendarData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white flex items-center justify-center">
+        <LoadingSpinner message="Preparing your data..." size="lg" />
       </div>
     );
   }

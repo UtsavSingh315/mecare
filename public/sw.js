@@ -1,19 +1,24 @@
 // Service Worker for Push Notifications
 // This file should be placed in the public directory as sw.js
 
-const CACHE_NAME = 'health-tracker-v1';
+const CACHE_NAME = 'health-tracker-v2';
+const STATIC_CACHE = 'static-v2';
+const API_CACHE = 'api-v2';
+
 const urlsToCache = [
   '/',
   '/offline',
   '/manifest.json',
   '/icon-192x192.png',
   '/icon-512x512.png',
+  '/_next/static/css/',
+  '/_next/static/chunks/',
 ];
 
 // Install event
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
+    caches.open(STATIC_CACHE)
       .then((cache) => cache.addAll(urlsToCache))
       .then(() => self.skipWaiting())
   );
@@ -25,7 +30,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
+          if (!['health-tracker-v2', 'static-v2', 'api-v2'].includes(cacheName)) {
             return caches.delete(cacheName);
           }
         })

@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:analyze": "ANALYZE=true npm run build",
+    "analyze": "node scripts/performance-analysis.js",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "drizzle-kit generate",
@@ -89,6 +91,10 @@
     "uuid": "^11.1.0",
     "vaul": "^0.9.9",
     "web-push": "^3.6.7",
+    "web-vitals": "^5.0.3",
     "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "webpack-bundle-analyzer": "^4.10.2"
   }
 }
