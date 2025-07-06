@@ -17,6 +17,7 @@ import { CalendarView } from "@/components/calendar-view";
 import { NextCycleCard } from "@/components/next-cycle-card";
 import { AffirmationCard } from "@/components/affirmation-card";
 import { TodoList } from "@/components/todo-list";
+import { NotificationBell } from "@/components/notification-bell";
 import { useAuth } from "@/contexts/auth-context";
 
 interface DashboardData {
@@ -304,14 +305,17 @@ export default function Home() {
             </h1>
             <p className="text-rose-100">Welcome to MeCare</p>
           </div>
-          <div className="text-right">
-            <div className="flex items-center gap-2 mb-1">
-              <Flame className="w-5 h-5 streak-flame" />
-              <span className="text-xl font-bold">
-                {dashboardData.currentStreak}
-              </span>
+          <div className="flex items-center gap-3">
+            <NotificationBell />
+            <div className="text-right">
+              <div className="flex items-center gap-2 mb-1">
+                <Flame className="w-5 h-5 streak-flame" />
+                <span className="text-xl font-bold">
+                  {dashboardData.currentStreak}
+                </span>
+              </div>
+              <p className="text-sm text-rose-100">day streak</p>
             </div>
-            <p className="text-sm text-rose-100">day streak</p>
           </div>
         </div>
 
