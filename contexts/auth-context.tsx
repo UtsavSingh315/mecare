@@ -58,12 +58,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Verify token with backend
-      const response = await fetch("/api/auth/verify", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // Add timeout to prevent hanging
+      const verifyPromise = Promise.race([
+        fetch("/api/auth/verify", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Auth verification timeout')), 5000)
+        )
+      ]);
+
+      const response = await verifyPromise as Response;
 
       if (response.ok) {
         const userData = await response.json();
@@ -72,11 +79,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Invalid token, clear it
         localStorage.removeItem("auth_token");
         localStorage.removeItem("user_data");
+        localStorage.removeItem("user_name");
       }
     } catch (error) {
       console.error("Auth check failed:", error);
       localStorage.removeItem("auth_token");
       localStorage.removeItem("user_data");
+      localStorage.removeItem("user_name");
     } finally {
       setLoading(false);
     }

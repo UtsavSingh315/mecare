@@ -66,7 +66,7 @@ export default function Home() {
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [challenges, setChallenges] = useState<UserChallenge[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
 
   // Calculate monthly progress from calendar data
   const calculateMonthlyProgress = () => {
@@ -106,81 +106,16 @@ export default function Home() {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
       try {
         const token = localStorage.getItem("auth_token");
-
-        // Fetch dashboard data
-        const dashboardResponse = await fetch(
-          `/api/users/${user.id}/dashboard`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (dashboardResponse.ok) {
-          const data = await dashboardResponse.json();
-          setDashboardData(data);
-        } else {
-          console.error("Failed to fetch dashboard data");
-          // Fall back to default data
-          setDashboardData({
-            currentStreak: 0,
-            totalLogged: 0,
-            badges: [],
-            currentCycle: 1,
-            averageCycle: 28,
-            nextPeriod: null,
-            fertilityWindow: { start: null, end: null },
-          });
-        }
-
-        // Fetch calendar data for current month
-        const currentDate = new Date();
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth() + 1;
-
-        const calendarResponse = await fetch(
-          `/api/users/${user.id}/calendar?year=${year}&month=${month}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (calendarResponse.ok) {
-          const calendarData = await calendarResponse.json();
-          setCalendarData(calendarData);
-        } else {
-          console.error("Failed to fetch calendar data");
-          setCalendarData({ logs: [], periodDays: [] });
-        }
-
-        // Fetch user challenges
-        const challengesResponse = await fetch(
-          `/api/users/${user.id}/challenges`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (challengesResponse.ok) {
-          const challengesData = await challengesResponse.json();
-          setChallenges(challengesData.slice(0, 3)); // Show only top 3 challenges
-        } else {
-          console.error("Failed to fetch challenges data");
-          setChallenges([]);
-        }
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        // Fall back to default data
-        setDashboardData({
+        
+        // Set default data first to avoid infinite loading
+        const defaultDashboard = {
           currentStreak: 0,
           totalLogged: 0,
           badges: [],
@@ -188,8 +123,81 @@ export default function Home() {
           averageCycle: 28,
           nextPeriod: null,
           fertilityWindow: { start: null, end: null },
-        });
-        setCalendarData({ logs: [], periodDays: [] });
+        };
+        
+        const defaultCalendar = { logs: [], periodDays: [] };
+        
+        // Set defaults immediately
+        setDashboardData(defaultDashboard);
+        setCalendarData(defaultCalendar);
+
+        // Fetch dashboard data with timeout
+        const dashboardPromise = Promise.race([
+          fetch(`/api/users/${user.id}/dashboard`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Dashboard timeout')), 5000)
+          )
+        ]);
+
+        try {
+          const dashboardResponse = await dashboardPromise as Response;
+          if (dashboardResponse.ok) {
+            const data = await dashboardResponse.json();
+            setDashboardData(data);
+          }
+        } catch (error) {
+          console.warn("Dashboard API failed, using defaults:", error);
+        }
+
+        // Fetch calendar data for current month with timeout
+        const currentDate = new Date();
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth() + 1;
+
+        const calendarPromise = Promise.race([
+          fetch(`/api/users/${user.id}/calendar?year=${year}&month=${month}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Calendar timeout')), 5000)
+          )
+        ]);
+
+        try {
+          const calendarResponse = await calendarPromise as Response;
+          if (calendarResponse.ok) {
+            const calendarData = await calendarResponse.json();
+            setCalendarData(calendarData);
+          }
+        } catch (error) {
+          console.warn("Calendar API failed, using defaults:", error);
+        }
+
+        // Fetch user challenges with timeout
+        const challengesPromise = Promise.race([
+          fetch(`/api/users/${user.id}/challenges`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Challenges timeout')), 5000)
+          )
+        ]);
+
+        try {
+          const challengesResponse = await challengesPromise as Response;
+          if (challengesResponse.ok) {
+            const challengesData = await challengesResponse.json();
+            setChallenges(challengesData.slice(0, 3));
+          }
+        } catch (error) {
+          console.warn("Challenges API failed, using defaults:", error);
+          setChallenges([]);
+        }
+
+      } catch (error) {
+        console.error("Error fetching data:", error);
       } finally {
         setLoading(false);
       }
@@ -197,10 +205,13 @@ export default function Home() {
 
     if (isAuthenticated && user) {
       fetchDashboardData();
+    } else if (!authLoading) {
+      // If auth is not loading and user is not authenticated, stop loading
+      setLoading(false);
     }
-  }, [user, isAuthenticated]);
+  }, [user, isAuthenticated, authLoading]);
 
-  if (loading || !dashboardData || !calendarData) {
+  if (authLoading || (loading && isAuthenticated) || !dashboardData || !calendarData) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white flex items-center justify-center">
         <div className="text-center">
